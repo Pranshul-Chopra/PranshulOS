@@ -15,7 +15,7 @@ CURRENT_VERSION = "2.0.0"
 # Raw JSON file living in your GitHub repo (or a GitHub Release asset URL).
 # Example using a raw file on the main branch:
 #   https://raw.githubusercontent.com/<you>/<repo>/main/version.json
-MANIFEST_URL = "https://raw.githubusercontent.com/YOURUSER/PranshulOS/main/version.json"
+MANIFEST_URL = "https://raw.githubusercontent.com/Pranshul-Chopra/PranshulOS/main/version.json"
 
 _TIMEOUT_SECONDS = 2.5  # fail fast — don't let a slow network hold up the app
 
