@@ -1,0 +1,5 @@
+{
+  "latest_version": "2.0.0",
+  "download_url": "https://github.com/YOURUSER/PranshulOS/releases/download/v2.0.0/PranshulOS-v2.0.0.zip",
+  "notes": "Removed local-machine app launchers in favor of general web links. Moved database to %LOCALAPPDATA% so it survives updates."
+}
