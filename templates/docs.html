@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Docs — FLUIDCB</title>
+  <title>Docs — PranshulOS</title>
   <link rel="stylesheet" href="/static/fonts/ibmflex.css"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -277,6 +277,10 @@
 
   // ── Views ──────────────────────────────────────────────────────────────────
   function showListView() {
+    // Kill any pending autosave before leaving the editor.
+    clearTimeout(_saveTimer);
+    _saveTimer = null;
+
     document.getElementById('list-view').style.display   = 'flex';
     document.getElementById('editor-view').style.display = 'none';
     document.getElementById('header-list-label').style.display = '';
@@ -346,6 +350,13 @@
 
   // ── Open doc ───────────────────────────────────────────────────────────────
   async function openDoc(id) {
+    // Cancel any pending autosave from the previous doc before switching.
+    // Without this, the timer fires after activeDocId changes and writes
+    // the old doc's content into the newly opened doc.
+    clearTimeout(_saveTimer);
+    _saveTimer = null;
+    activeDocId = null;
+
     try {
       const doc = await api('GET', `/api/docs/${id}`);
       activeDocId = id;
