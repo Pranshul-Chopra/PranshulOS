@@ -210,15 +210,17 @@ async function navigate(page) {
     content.appendChild(wrapper);
     content.classList.add('fade-in');
 
-    // 3. Run scripts last
-    const scripts = doc.querySelectorAll('script');
-    for (const s of scripts) {
-      const el = document.createElement('script');
-      if (s.src) { el.src = s.src; }
-      else { el.textContent = s.textContent; }
-      document.head.appendChild(el);
-      document.head.removeChild(el);
-    }
+    // 3. Run scripts last, after the fragment has been inserted into the DOM.
+    requestAnimationFrame(() => {
+      const scripts = doc.querySelectorAll('script');
+      for (const s of scripts) {
+        const el = document.createElement('script');
+        if (s.src) { el.src = s.src; }
+        else { el.textContent = s.textContent; }
+        document.head.appendChild(el);
+        document.head.removeChild(el);
+      }
+    });
 
   } catch (e) {
     document.getElementById('content').innerHTML =

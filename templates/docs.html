@@ -263,7 +263,12 @@
   let _saveTimer     = null;
 
   // ── Init ───────────────────────────────────────────────────────────────────
-  loadDocs();
+  function initDocs() {
+    renderGrid();
+    loadDocs();
+  }
+
+  requestAnimationFrame(initDocs);
 
   // ── API ────────────────────────────────────────────────────────────────────
   async function api(method, path, body) {
