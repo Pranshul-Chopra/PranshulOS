@@ -6,6 +6,7 @@ release/
 nuitka-dist/
 main.dist/
 main.build/
+electron/
 
 # Python
 __pycache__/
