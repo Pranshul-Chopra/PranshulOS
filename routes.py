@@ -180,9 +180,9 @@ function addLog(text, cls) {
 @bp.route("/home")
 def home():
     h = _dt.now().hour
-    if h < 12:   greeting = "Good morning, Pranshul ☀️"
-    elif h < 17: greeting = "Good afternoon, Pranshul 🌤"
-    else:        greeting = "Good evening, Pranshul 🌙"
+    if h < 12:   greeting = "Good morning ☀️"
+    elif h < 17: greeting = "Good afternoon 🌤"
+    else:        greeting = "Good evening 🌙"
     html = render_template_string(_HOME_HTML, greeting=greeting)
     if request.args.get("fragment"):
         # Extract just the body content for SPA navigation
