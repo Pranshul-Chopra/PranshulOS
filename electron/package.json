@@ -11,9 +11,9 @@
     "build": "electron-builder build --win",
     "build:dir": "electron-builder build --win --dir"
   },
-  "dependencies": {},
   "devDependencies": {
-    "electron": "^29.0.0",
+    "@electron/rebuild": "^4.2.0",
+    "electron": "29.4.6",
     "electron-builder": "^24.0.0"
   },
   "build": {
@@ -28,23 +28,26 @@
     ],
     "extraResources": [
       {
-        "from": "../flask-dist",
-        "to": "flask",
-        "filter": ["**/*"]
+      "from": "../dist/flask",
+      "to": "flask",
+      "filter": ["**/*"]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
-      ],
-      "icon": "../static/icon.ico"
+      ]
     },
     "nsis": {
       "oneClick": true,
