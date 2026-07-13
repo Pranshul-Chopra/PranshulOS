@@ -75,7 +75,7 @@ npx electron .
 py -3.11 -m venv venv311
 venv311\Scripts\activate
 pip install -r requirements.txt pyinstaller pyinstaller-hooks-contrib
-
+mkdir static
 cd electron && npm install && cd ..
 
 $env:CSC_IDENTITY_AUTO_DISCOVERY="false"
