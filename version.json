@@ -1,0 +1,5 @@
+{
+  "latest_version": "2.0.1",
+  "download_url": "https://github.com/Pranshul-Chopra/PranshulOS/releases/download/v2.0.1/PranshulOS-v2.0.1.zip",
+  "notes": "Fixed pythonnet runtime loader error on packaged exe."
+}

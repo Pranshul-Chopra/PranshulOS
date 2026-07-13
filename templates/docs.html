@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Docs — FLUIDCB</title>
+  <link rel="stylesheet" href="/static/fonts/ibmflex.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:          #0c0c0c;
+      --surface:     #141414;
+      --surface2:    #1c1c1c;
+      --border:      #272727;
+      --border2:     #333;
+      --text:        #e8e6e1;
+      --text2:       #8a8880;
+      --text3:       #4a4845;
+      --amber:       #e8a84c;
+      --amber-dim:   #7a5820;
+      --amber-glow:  rgba(232,168,76,0.07);
+      --amber-glow2: rgba(232,168,76,0.14);
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; overflow: hidden; }
+    .shell { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Shared header ── */
+    header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 20px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0; height: 44px;
+    }
+    .logo { font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.12em; color: var(--amber); }
+    .h-sep { width: 1px; height: 14px; background: var(--border2); }
+    .h-title { font-size: 12px; color: var(--text2); font-family: var(--mono); letter-spacing: 0.04em; }
+    .back-btn {
+      display: flex; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 11px; color: var(--amber);
+      background: var(--amber-glow); border: 1px solid var(--amber-dim);
+      padding: 5px 12px; border-radius: 6px; cursor: pointer;
+      transition: all 0.15s; font-weight: 600; letter-spacing: 0.04em;
+    }
+    .back-btn:hover { background: var(--amber-glow2); border-color: var(--amber); }
+    .save-status { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text3); }
+    .doc-title-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      font-family: var(--sans); font-size: 14px; font-weight: 500;
+      color: var(--text); text-align: center;
+      border-bottom: 1px solid transparent; transition: border-color 0.15s;
+      padding: 2px 4px;
+    }
+    .doc-title-input:focus { border-bottom-color: var(--amber-dim); }
+    .doc-title-input::placeholder { color: var(--text3); }
+
+    /* ── LIST VIEW ── */
+    #list-view { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    .list-toolbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .search-input {
+      flex: 1; background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 8px; padding: 7px 12px; font-family: var(--mono);
+      font-size: 12px; color: var(--text2); outline: none; transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: var(--amber-dim); }
+    .search-input::placeholder { color: var(--text3); }
+    .new-btn {
+      font-family: var(--mono); font-size: 11px; color: var(--amber);
+      background: var(--amber-glow); border: 1px solid var(--amber-dim);
+      padding: 7px 16px; border-radius: 8px; cursor: pointer; white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .new-btn:hover { background: var(--amber-glow2); }
+
+    .doc-grid {
+      flex: 1; overflow-y: auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      align-content: start;
+    }
+    .doc-grid::-webkit-scrollbar { width: 3px; }
+    .doc-grid::-webkit-scrollbar-thumb { background: var(--border2); }
+
+    .doc-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      display: flex; flex-direction: column; gap: 8px;
+      position: relative;
+      min-height: 100px;
+    }
+    .doc-card:hover { border-color: var(--border2); background: var(--surface2); }
+    .doc-card-icon { font-size: 20px; opacity: 0.6; }
+    .doc-card-title {
+      font-size: 14px; font-weight: 500; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .doc-card-preview {
+      font-size: 12px; color: var(--text3); line-height: 1.5;
+      overflow: hidden; display: -webkit-box;
+      -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      flex: 1;
+    }
+    .doc-card-meta { font-family: var(--mono); font-size: 9px; color: var(--text3); }
+    .doc-card-delete {
+      position: absolute; top: 10px; right: 10px;
+      opacity: 0; font-size: 12px; color: var(--text3);
+      background: var(--surface2); border: 1px solid var(--border2);
+      width: 22px; height: 22px; border-radius: 5px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: opacity 0.12s, color 0.12s;
+    }
+    .doc-card:hover .doc-card-delete { opacity: 1; }
+    .doc-card-delete:hover { color: #e06c6c; border-color: #8b2020; }
+
+    .empty-state {
+      grid-column: 1/-1;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 12px; padding: 60px 20px;
+      font-family: var(--mono); font-size: 11px; color: var(--text3);
+      text-align: center; letter-spacing: 0.04em; line-height: 1.8;
+    }
+    .empty-state-icon { font-size: 36px; opacity: 0.2; }
+
+    /* ── EDITOR VIEW ── */
+    #editor-view { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+
+    .editor-toolbar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-bottom: 1px solid var(--border);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .tb-btn {
+      font-family: var(--mono); font-size: 11px; color: var(--text3);
+      background: transparent; border: 1px solid transparent;
+      padding: 3px 8px; border-radius: 5px; cursor: pointer;
+      transition: all 0.12s;
+    }
+    .tb-btn:hover { color: var(--text); border-color: var(--border2); background: var(--surface2); }
+    .tb-sep { width: 1px; height: 14px; background: var(--border); margin: 0 2px; }
+    .tb-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .word-count { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+
+    .editor-wrap { flex: 1; overflow-y: auto; padding: 40px 80px; }
+    .editor-wrap::-webkit-scrollbar { width: 4px; }
+    .editor-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    #editor {
+      width: 100%; min-height: 100%; background: transparent;
+      border: none; outline: none; resize: none;
+      font-family: var(--sans); font-size: 15px; line-height: 1.9;
+      color: var(--text); caret-color: var(--amber);
+    }
+    #editor::placeholder { color: var(--text3); }
+
+    /* ── Delete modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 999; opacity: 0; pointer-events: none; transition: opacity 0.15s;
+    }
+    .modal-overlay.visible { opacity: 1; pointer-events: all; }
+    .modal {
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 12px; padding: 24px 28px; width: 340px;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .modal-title { font-size: 15px; font-weight: 500; }
+    .modal-body { font-size: 13px; color: var(--text2); line-height: 1.6; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .modal-cancel {
+      font-family: var(--mono); font-size: 11px; color: var(--text2);
+      background: var(--surface2); border: 1px solid var(--border2);
+      padding: 6px 16px; border-radius: 7px; cursor: pointer;
+    }
+    .modal-confirm {
+      font-family: var(--mono); font-size: 11px; color: #fff;
+      background: #8b2020; border: 1px solid #6b1a1a;
+      padding: 6px 16px; border-radius: 7px; cursor: pointer;
+    }
+    .modal-confirm:hover { background: #a02626; }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Header (shared, content changes by view) ── -->
+  <header id="docs-header">
+    <span class="logo">FLUIDCB</span>
+    <div class="h-sep"></div>
+
+    <!-- List mode header -->
+    <span class="h-title" id="header-list-label">docs</span>
+
+    <!-- Editor mode header (hidden initially) -->
+    <button class="back-btn" id="header-back" style="display:none;" onclick="backToList()">← back</button>
+    <input type="text" id="docTitleInput" class="doc-title-input" style="display:none;" placeholder="untitled"/>
+    <span class="save-status" id="saveStatus"></span>
+  </header>
+
+  <!-- ── LIST VIEW ── -->
+  <div id="list-view">
+    <div class="list-toolbar">
+      <input type="text" class="search-input" id="searchInput" placeholder="search documents…" oninput="filterDocs(this.value)"/>
+      <button class="new-btn" onclick="createDoc()">+ new doc</button>
+    </div>
+    <div class="doc-grid" id="docGrid">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-state-icon">📄</div>
+        <div>no documents yet<br/>click + new doc to get started</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── EDITOR VIEW ── -->
+  <div id="editor-view">
+    <div class="editor-toolbar">
+      <button class="tb-btn" onclick="fmt('bold')"><b>B</b></button>
+      <button class="tb-btn" onclick="fmt('italic')"><i>I</i></button>
+      <button class="tb-btn" onclick="fmt('underline')"><u>U</u></button>
+      <div class="tb-sep"></div>
+      <button class="tb-btn" onclick="insertHeading()">H</button>
+      <button class="tb-btn" onclick="insertBullet()">• list</button>
+      <button class="tb-btn" onclick="insertDivider()">— divider</button>
+      <div class="tb-right">
+        <span class="word-count" id="wordCount">0 words</span>
+        <button class="tb-btn" onclick="flushSave()" style="color:var(--amber);border-color:var(--amber-dim);">save</button>
+      </div>
+    </div>
+    <div class="editor-wrap">
+      <textarea id="editor" placeholder="start writing…"></textarea>
+    </div>
+  </div>
+
+</div>
+
+<!-- Delete modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">Delete document?</div>
+    <div class="modal-body" id="deleteModalBody">This cannot be undone.</div>
+    <div class="modal-actions">
+      <button class="modal-cancel" onclick="closeDeleteModal()">cancel</button>
+      <button class="modal-confirm" onclick="confirmDelete()">delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let docs           = [];
+  let activeDocId    = null;
+  let pendingDeleteId = null;
+  let searchQuery    = '';
+  let _saveTimer     = null;
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  loadDocs();
+
+  // ── API ────────────────────────────────────────────────────────────────────
+  async function api(method, path, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(path, opts);
+    if (!res.ok) throw new Error(await res.text());
+    if (res.status === 204) return null;
+    return res.json();
+  }
+
+  // ── Views ──────────────────────────────────────────────────────────────────
+  function showListView() {
+    document.getElementById('list-view').style.display   = 'flex';
+    document.getElementById('editor-view').style.display = 'none';
+    document.getElementById('header-list-label').style.display = '';
+    document.getElementById('header-back').style.display        = 'none';
+    document.getElementById('docTitleInput').style.display      = 'none';
+    document.getElementById('saveStatus').textContent           = '';
+    activeDocId = null;
+  }
+
+  function showEditorView() {
+    document.getElementById('list-view').style.display   = 'none';
+    document.getElementById('editor-view').style.display = 'flex';
+    document.getElementById('header-list-label').style.display = 'none';
+    document.getElementById('header-back').style.display        = '';
+    document.getElementById('docTitleInput').style.display      = '';
+  }
+
+  function backToList() {
+    if (document.getElementById('saveStatus').textContent === 'unsaved') {
+      flushSave();
+    }
+    showListView();
+    loadDocs(); // refresh list in case title changed
+  }
+
+  // ── Load docs ──────────────────────────────────────────────────────────────
+  async function loadDocs() {
+    try {
+      docs = await api('GET', '/api/docs');
+      renderGrid();
+    } catch(e) { console.error('loadDocs failed:', e); }
+  }
+
+  function renderGrid() {
+    const grid   = document.getElementById('docGrid');
+    const empty  = document.getElementById('emptyState');
+    const filtered = docs.filter(d =>
+      !searchQuery || d.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    grid.querySelectorAll('.doc-card').forEach(el => el.remove());
+
+    if (filtered.length === 0) {
+      empty.style.display = 'flex';
+      empty.querySelector('div:last-child').textContent =
+        searchQuery ? 'no results' : 'no documents yet\nclick + new doc to get started';
+      return;
+    }
+    empty.style.display = 'none';
+
+    filtered.forEach(doc => {
+      const card = document.createElement('div');
+      card.className = 'doc-card';
+      card.innerHTML = `
+        <div class="doc-card-icon">📄</div>
+        <div class="doc-card-title">${esc(doc.title)}</div>
+        <div class="doc-card-preview">${esc((doc.content || '').trim() || 'empty document')}</div>
+        <div class="doc-card-meta">${formatDate(doc.updated_at)}</div>
+        <button class="doc-card-delete" title="delete" onclick="openDeleteModal(${doc.id},'${esc(doc.title)}',event)">✕</button>
+      `;
+      card.addEventListener('click', () => openDoc(doc.id));
+      grid.appendChild(card);
+    });
+  }
+
+  function filterDocs(q) { searchQuery = q; renderGrid(); }
+
+  // ── Open doc ───────────────────────────────────────────────────────────────
+  async function openDoc(id) {
+    try {
+      const doc = await api('GET', `/api/docs/${id}`);
+      activeDocId = id;
+      document.getElementById('docTitleInput').value = doc.title;
+      document.getElementById('editor').value        = doc.content || '';
+      updateWordCount();
+      setStatus('');
+      showEditorView();
+      document.getElementById('editor').focus();
+    } catch(e) { console.error('openDoc failed:', e); }
+  }
+
+  // ── Create doc ─────────────────────────────────────────────────────────────
+  async function createDoc() {
+    try {
+      const doc = await api('POST', '/api/docs', { title: 'Untitled' });
+      // Add to local list and re-render — don't navigate to editor
+      docs.unshift({ id: doc.id, title: doc.title, content: '', created_at: doc.created_at, updated_at: doc.updated_at });
+      renderGrid();
+      // Flash the new card briefly to show it was added
+      setTimeout(() => {
+        const cards = document.querySelectorAll('.doc-card');
+        if (cards[0]) {
+          cards[0].style.borderColor = 'var(--amber)';
+          setTimeout(() => { cards[0].style.borderColor = ''; }, 800);
+        }
+      }, 50);
+    } catch(e) { console.error('createDoc failed:', e); }
+  }
+
+  // ── Save ───────────────────────────────────────────────────────────────────
+  async function flushSave() {
+    if (!activeDocId) return;
+    clearTimeout(_saveTimer);
+    const title   = document.getElementById('docTitleInput').value.trim() || 'Untitled';
+    const content = document.getElementById('editor').value;
+    setStatus('saving…');
+    try {
+      await api('PATCH', `/api/docs/${activeDocId}`, { title, content });
+      setStatus('saved');
+      setTimeout(() => { if (document.getElementById('saveStatus').textContent === 'saved') setStatus(''); }, 2000);
+    } catch(e) { setStatus('save failed'); }
+  }
+
+  function _scheduleAutosave() {
+    clearTimeout(_saveTimer);
+    _saveTimer = setTimeout(flushSave, 1500);
+  }
+
+  // ── Delete ─────────────────────────────────────────────────────────────────
+  function openDeleteModal(id, title, e) {
+    e.stopPropagation();
+    pendingDeleteId = id;
+    document.getElementById('deleteModalBody').textContent = `"${title}" will be permanently deleted.`;
+    document.getElementById('deleteModal').classList.add('visible');
+  }
+  function closeDeleteModal() {
+    pendingDeleteId = null;
+    document.getElementById('deleteModal').classList.remove('visible');
+  }
+  async function confirmDelete() {
+    if (!pendingDeleteId) return;
+    try {
+      await api('DELETE', `/api/docs/${pendingDeleteId}`);
+      docs = docs.filter(d => d.id !== pendingDeleteId);
+      renderGrid();
+    } catch(e) { console.error('delete failed:', e); }
+    closeDeleteModal();
+  }
+
+  // ── Toolbar ────────────────────────────────────────────────────────────────
+  function fmt(cmd) {
+    const ta = document.getElementById('editor');
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    const sel = ta.value.substring(s, e);
+    const m = { bold: '**', italic: '_', underline: '__' }[cmd];
+    ta.setRangeText(`${m}${sel||cmd}${m}`, s, e, 'end');
+    ta.focus(); setStatus('unsaved'); _scheduleAutosave();
+  }
+  function insertHeading() {
+    const ta = document.getElementById('editor');
+    const before = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+    ta.setRangeText('## ', before, before, 'end');
+    ta.focus(); setStatus('unsaved'); _scheduleAutosave();
+  }
+  function insertBullet() {
+    const ta = document.getElementById('editor');
+    const before = ta.value.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+    ta.setRangeText('- ', before, before, 'end');
+    ta.focus(); setStatus('unsaved'); _scheduleAutosave();
+  }
+  function insertDivider() {
+    const ta = document.getElementById('editor');
+    ta.setRangeText('\n\n---\n\n', ta.selectionStart, ta.selectionStart, 'end');
+    ta.focus(); setStatus('unsaved'); _scheduleAutosave();
+  }
+
+  function updateWordCount() {
+    const text = document.getElementById('editor').value.trim();
+    const n = text ? text.split(/\s+/).length : 0;
+    document.getElementById('wordCount').textContent = `${n} word${n!==1?'s':''}`;
+  }
+
+  // ── Events ─────────────────────────────────────────────────────────────────
+  document.getElementById('editor').addEventListener('input', () => {
+    updateWordCount(); setStatus('unsaved'); _scheduleAutosave();
+  });
+  document.getElementById('docTitleInput').addEventListener('input', () => {
+    setStatus('unsaved'); _scheduleAutosave();
+  });
+  document.getElementById('docTitleInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('editor').focus(); }
+  });
+  document.getElementById('editor').addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const ta = e.target, s = ta.selectionStart;
+      ta.setRangeText('  ', s, s, 'end');
+      setStatus('unsaved');
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); flushSave(); }
+  });
+  document.getElementById('deleteModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeDeleteModal();
+  });
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function setStatus(msg) { document.getElementById('saveStatus').textContent = msg; }
+  function formatDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso.replace(' ','T')+'Z'), now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 60)    return 'just now';
+    if (diff < 3600)  return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  }
+  function esc(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PranshulOS</title>
+  <link rel="stylesheet" href="/static/fonts/ibmflex.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:          #0c0c0c;
+      --surface:     #141414;
+      --surface2:    #1c1c1c;
+      --border:      #272727;
+      --border2:     #333;
+      --text:        #e8e6e1;
+      --text2:       #8a8880;
+      --text3:       #4a4845;
+      --amber:       #e8a84c;
+      --amber-dim:   #7a5820;
+      --amber-faint: rgba(232,168,76,0.07);
+      --amber-faint2:rgba(232,168,76,0.14);
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
+    html, body {
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: var(--sans); -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    /* ── App shell: sidebar + main ── */
+    .app {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 180px;
+      flex-shrink: 0;
+      background: #0e0e0e;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .sb-logo {
+      padding: 20px 16px 14px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--amber);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .sb-nav {
+      padding: 12px 8px;
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .sb-section {
+      padding: 10px 8px 4px;
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      color: var(--text3);
+      text-transform: uppercase;
+    }
+    .sb-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text3);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sb-btn:hover { background: var(--surface2); color: var(--text2); }
+    .sb-btn.active { background: var(--surface2); color: var(--amber); }
+    .sb-btn .sb-icon { font-size: 14px; flex-shrink: 0; }
+    .sb-ver {
+      padding: 12px 16px;
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text3);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    /* ── Main content area ── */
+    .main {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    #content {
+      flex: 1;
+      overflow: auto;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    #content > div {
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ── Page transition ── */
+    .fade-in { animation: fadeIn 0.15s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sb-logo">FLUIDCB</div>
+    <nav class="sb-nav">
+      <div class="sb-section">Navigate</div>
+      <button class="sb-btn" id="nav-home" onclick="navigate('home')">
+        <span class="sb-icon">🏠</span> Home
+      </button>
+      <button class="sb-btn" id="nav-dashboard" onclick="navigate('dashboard')">
+        <span class="sb-icon">📋</span> Dashboard
+      </button>
+      <button class="sb-btn" id="nav-docs" onclick="navigate('docs')">
+        <span class="sb-icon">📝</span> Docs
+      </button>
+
+      <div class="sb-section" style="margin-top:8px;">Apps</div>
+      <button class="sb-btn" onclick="launch('youtube')"><span class="sb-icon">🎬</span> YouTube</button>
+      <button class="sb-btn" onclick="launch('spotify')"><span class="sb-icon">🎵</span> Spotify</button>
+      <button class="sb-btn" onclick="launch('whatsapp')"><span class="sb-icon">💬</span> WhatsApp</button>
+      <button class="sb-btn" onclick="launch('discord')"><span class="sb-icon">🎮</span> Discord</button>
+      <button class="sb-btn" onclick="launch('github')"><span class="sb-icon">🐙</span> GitHub</button>
+      <button class="sb-btn" onclick="launch('gmail')"><span class="sb-icon">✉️</span> Gmail</button>
+    </nav>
+    <div class="sb-ver">v2.1 · pranshulos</div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+    <div id="content"></div>
+  </main>
+
+</div>
+
+<script>
+// ── Navigation ──────────────────────────────────────────────────────────────
+
+let _currentPage = null;
+let _pageScripts = [];
+
+async function navigate(page) {
+  if (_currentPage === page) return;
+  _currentPage = page;
+
+  // Update sidebar active state
+  document.querySelectorAll('.sb-btn[id^="nav-"]').forEach(b => b.classList.remove('active'));
+  const navBtn = document.getElementById('nav-' + page);
+  if (navBtn) navBtn.classList.add('active');
+
+  // Fetch the page fragment
+  try {
+    const res  = await fetch('/' + page + '?fragment=1');
+    const html = await res.text();
+
+    const content = document.getElementById('content');
+    content.innerHTML = '';
+    content.classList.remove('fade-in');
+
+    // Parse and inject HTML + scripts
+    const parser = new DOMParser();
+    const doc    = parser.parseFromString(html, 'text/html');
+
+    // Remove previously injected page styles
+    document.querySelectorAll('style[data-page]').forEach(s => s.remove());
+
+    // 1. Inject styles FIRST (from both head and any style tags in body fragment)
+    doc.querySelectorAll('style').forEach(s => {
+      const el = document.createElement('style');
+      el.setAttribute('data-page', page);
+      el.textContent = s.textContent;
+      document.head.appendChild(el);
+    });
+
+    // 2. Inject body content (non-script nodes)
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'height:100%;display:flex;flex-direction:column;min-height:0;';
+    doc.body.childNodes.forEach(node => {
+      if (node.nodeName !== 'SCRIPT' && node.nodeName !== 'STYLE') {
+        wrapper.appendChild(document.importNode(node, true));
+      }
+    });
+    content.appendChild(wrapper);
+    content.classList.add('fade-in');
+
+    // 3. Run scripts last
+    const scripts = doc.querySelectorAll('script');
+    for (const s of scripts) {
+      const el = document.createElement('script');
+      if (s.src) { el.src = s.src; }
+      else { el.textContent = s.textContent; }
+      document.head.appendChild(el);
+      document.head.removeChild(el);
+    }
+
+  } catch (e) {
+    document.getElementById('content').innerHTML =
+      '<div style="padding:40px;font-family:monospace;color:#c87070;">Failed to load ' + page + '</div>';
+  }
+}
+
+// ── App launches ─────────────────────────────────────────────────────────────
+
+async function launch(app) {
+  try { await fetch('/launch/' + app); } catch(_) {}
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+navigate('home');
+</script>
+</body>
+</html>

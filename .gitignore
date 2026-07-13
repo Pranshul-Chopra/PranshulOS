@@ -1,0 +1,20 @@
+# Build outputs
+dist/
+build/
+flask-dist/
+release/
+nuitka-dist/
+main.dist/
+main.build/
+
+# Python
+__pycache__/
+*.pyc
+*.db
+*.spec.bak
+nuitka-crash-report.xml
+venv*/
+Python.Runtime.runtimeconfig.json
+
+# Node
+electron/node_modules/
