@@ -430,6 +430,7 @@ let tasks = [], goals = [];
 let calView = { year: 0, month: 0 };
 let selectedDate = null;
 let showDone = false;
+let dashboardInitialized = false;
 
 function todayStr() {
   const d = new Date();
@@ -580,9 +581,14 @@ function fillList(elId, items, showStackTag) {
 }
 
 function render() {
+  const hdate = document.getElementById('hdate');
+  const calLabel = document.getElementById('cal-label');
+  const calGrid = document.getElementById('cal-grid');
+  if (!hdate || !calLabel || !calGrid) return;
+
   const today = todayStr();
 
-  document.getElementById('hdate').textContent =
+  hdate.textContent =
     new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
 
   const pending  = tasks.filter(t => !t.done && !t.stacked && t.date === today);
@@ -647,8 +653,12 @@ function selectDate(dateStr) {
 }
 
 function renderCal() {
+  const calLabel = document.getElementById('cal-label');
+  const calGrid = document.getElementById('cal-grid');
+  if (!calLabel || !calGrid) return;
+
   const { year, month } = calView;
-  document.getElementById('cal-label').textContent =
+  calLabel.textContent =
     `${MONTHS[month].slice(0,3).toUpperCase()} ${year}`;
 
   const today = todayStr();
@@ -690,6 +700,17 @@ function renderCal() {
 
 // init
 function initDashboard() {
+  if (dashboardInitialized) return;
+
+  const calGrid = document.getElementById('cal-grid');
+  const calLabel = document.getElementById('cal-label');
+  const hdate = document.getElementById('hdate');
+  if (!calGrid || !calLabel || !hdate) {
+    requestAnimationFrame(initDashboard);
+    return;
+  }
+
+  dashboardInitialized = true;
   const now = new Date();
   calView = { year: now.getFullYear(), month: now.getMonth() };
   render();
@@ -697,6 +718,7 @@ function initDashboard() {
 }
 
 requestAnimationFrame(initDashboard);
+window.addEventListener('load', initDashboard);
 setInterval(() => { if (tasks.length) checkNotif(tasks.filter(t => !t.done && !t.stacked && t.date === todayStr()).length); }, 60000);
 </script>
 </body>
