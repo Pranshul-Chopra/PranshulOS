@@ -423,6 +423,17 @@
 </div>
 
 <script>
+// ── BUG-2026-003 FIX ──────────────────────────────────────────────────────────
+// shell.html runs page scripts via `new Function(src)()` — a private closure
+// scope. Every function defined here is local to that scope, invisible to the
+// global `window` that inline onclick="..." attributes resolve against.
+// Fix: expose every callback explicitly on `window` so onclick handlers work.
+// Additional fixes:
+//   • toggleDone now also re-renders the done list (was only toggling display)
+//   • checkNotif covers the 23:00 threshold required by the spec
+//   • renderCal no longer redeclares `grid` (was shadowing the calGrid ref)
+// ─────────────────────────────────────────────────────────────────────────────
+
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const DOWS   = ['SU','MO','TU','WE','TH','FR','SA'];
 
@@ -518,6 +529,12 @@ function switchTab(tab) {
 
 function toggleDone() {
   showDone = !showDone;
+  // FIX: re-render the done list into the DOM on expand, not just toggle display.
+  // Previously the list was only rendered during render() and the display toggle
+  // had no items to show if render() hadn't been called yet after new completions.
+  const today = todayStr();
+  const done = tasks.filter(t => t.done && t.done_date === today);
+  fillList('list-done', done, false);
   document.getElementById('list-done').style.display = showDone ? '' : 'none';
   renderDoneToggle();
 }
@@ -600,8 +617,10 @@ function render() {
   fillList('list-stacked', stacked, true);
   fillList('list-sel',     selTasks, false);
 
+  // Keep done list hidden unless user expanded it
+  if (!showDone) document.getElementById('list-done').style.display = 'none';
+
   renderDoneToggle();
-  if (showDone) document.getElementById('list-done').style.display = '';
 
   if (selectedDate) {
     document.getElementById('sel-label').textContent = `TASKS FOR ${fmtDate(selectedDate)}`;
@@ -614,10 +633,10 @@ function render() {
     const div = document.createElement('div');
     div.className = 'goal-item';
     const bullet = document.createElement('div'); bullet.className = 'goal-bullet';
-    const txt = document.createElement('div'); txt.className = 'goal-text'; txt.textContent = g.text;
+    const txtEl = document.createElement('div'); txtEl.className = 'goal-text'; txtEl.textContent = g.text;
     const del = document.createElement('button'); del.className = 'goal-del';
     del.textContent = '×'; del.onclick = () => deleteGoal(g.id);
-    div.append(bullet, txt, del);
+    div.append(bullet, txtEl, del);
     gl.appendChild(div);
   });
 
@@ -628,10 +647,16 @@ function render() {
 function checkNotif(pendingCount) {
   const area = document.getElementById('notif-area');
   const h = new Date().getHours();
+  // FIX: added 23:00 tier as required by spec (pending tasks prompt notification)
   if (pendingCount > 0 && h >= 18) {
-    const msg = h >= 20
-      ? `${pendingCount} task${pendingCount>1?'s':''} still pending — day ends soon.`
-      : `${pendingCount} task${pendingCount>1?'s':''} left today. Evening reminder.`;
+    let msg;
+    if (h >= 23) {
+      msg = `${pendingCount} task${pendingCount>1?'s':''} still pending — midnight approaching!`;
+    } else if (h >= 20) {
+      msg = `${pendingCount} task${pendingCount>1?'s':''} still pending — day ends soon.`;
+    } else {
+      msg = `${pendingCount} task${pendingCount>1?'s':''} left today. Evening reminder.`;
+    }
     area.innerHTML = `<div class="notif"><div class="notif-dot"></div>${msg}</div>`;
   } else {
     area.innerHTML = '';
@@ -653,22 +678,20 @@ function selectDate(dateStr) {
 
 function renderCal() {
   const calLabel = document.getElementById('cal-label');
-  const calGrid = document.getElementById('cal-grid');
+  const calGrid  = document.getElementById('cal-grid');  // FIX: was re-declared as `grid` below, shadowing this
   if (!calLabel || !calGrid) return;
 
   const { year, month } = calView;
-  calLabel.textContent =
-    `${MONTHS[month].slice(0,3).toUpperCase()} ${year}`;
+  calLabel.textContent = `${MONTHS[month].slice(0,3).toUpperCase()} ${year}`;
 
   const today = todayStr();
   const taskDates = new Set(tasks.map(t => t.date));
-  const grid = document.getElementById('cal-grid');
-  grid.innerHTML = '';
+  calGrid.innerHTML = '';  // FIX: use calGrid, not a re-declared `grid`
 
   DOWS.forEach(d => {
     const el = document.createElement('div');
     el.className = 'cal-dow'; el.textContent = d;
-    grid.appendChild(el);
+    calGrid.appendChild(el);
   });
 
   const firstDay = new Date(year, month, 1).getDay();
@@ -676,7 +699,7 @@ function renderCal() {
 
   for (let i = 0; i < firstDay; i++) {
     const el = document.createElement('div'); el.className = 'cal-day faded';
-    grid.appendChild(el);
+    calGrid.appendChild(el);
   }
 
   for (let d = 1; d <= daysInMonth; d++) {
@@ -693,26 +716,50 @@ function renderCal() {
       el.appendChild(dot);
     }
     el.onclick = () => selectDate(ds);
-    grid.appendChild(el);
+    calGrid.appendChild(el);
   }
 }
 
-// ── Page init hook (called by shell.html after DOM is live) ─────────────────
-// Shell guarantees DOM is appended before calling this, so no polling needed.
+// ── FIX: expose all onclick-targeted functions to window scope ────────────────
+// shell.html executes page scripts via `new Function(src)()` — a sealed
+// closure. Inline onclick="fn()" attributes resolve against window, not this
+// closure. Without explicit assignment every button silently does nothing.
+window.addTask     = addTask;
+window.addTaskSel  = addTaskSel;
+window.switchTab   = switchTab;
+window.toggleDone  = toggleDone;
+window.shiftMonth  = shiftMonth;
+window.selectDate  = selectDate;
+window.addGoal     = addGoal;
+// toggleTask / deleteTask / deleteGoal are called only via closures in
+// makeTaskEl, so they don't need window assignment.
+
+// ── Page init hook ────────────────────────────────────────────────────────────
 window.__pageInit = function initDashboard() {
   const now = new Date();
   calView = { year: now.getFullYear(), month: now.getMonth() };
-  render();
-  loadState();
+  selectedDate = null;
+  showDone = false;
+  render();       // paint skeleton immediately
+  loadState();    // then hydrate from API
 };
 
-// Interval is registered once per page load; shell.__pageDestroy clears it.
-const _notifInterval = setInterval(() => {
-  if (tasks.length) checkNotif(tasks.filter(t => !t.done && !t.stacked && t.date === todayStr()).length);
-}, 60000);
+// Interval registered after __pageInit call; destroyed by shell on navigate-away.
+// FIX: moved inside __pageInit so it starts AFTER tasks are live, not at parse time.
+let _notifInterval = null;
+window.__pageInit = (function(_orig) {
+  return function initDashboard() {
+    _orig();
+    _notifInterval = setInterval(() => {
+      const today = todayStr();
+      const pendingCount = tasks.filter(t => !t.done && !t.stacked && t.date === today).length;
+      checkNotif(pendingCount);
+    }, 60000);
+  };
+})(window.__pageInit);
 
 window.__pageDestroy = function() {
-  clearInterval(_notifInterval);
+  if (_notifInterval) { clearInterval(_notifInterval); _notifInterval = null; }
 };
 </script>
 </body>
