@@ -83,11 +83,6 @@ _HOME_HTML = """<!DOCTYPE html>
 </head>
 <body>
 <div class="shell">
-  <nav style="display:flex;gap:6px;margin-bottom:28px;">
-    <a href="/home" style="padding:6px 14px;border-radius:8px;background:var(--surface2);color:var(--amber);font-family:var(--mono);font-size:11px;text-decoration:none;border:1px solid var(--border2);">🏠 Home</a>
-    <a href="/dashboard" style="padding:6px 14px;border-radius:8px;background:transparent;color:var(--text3);font-family:var(--mono);font-size:11px;text-decoration:none;border:1px solid transparent;transition:all 0.15s;" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--border2)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='transparent'">📋 Dashboard</a>
-    <a href="/docs" style="padding:6px 14px;border-radius:8px;background:transparent;color:var(--text3);font-family:var(--mono);font-size:11px;text-decoration:none;border:1px solid transparent;transition:all 0.15s;" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--border2)'" onmouseout="this.style.color='var(--text3)';this.style.borderColor='transparent'">📝 Docs</a>
-  </nav>
   <div class="greeting">{{ greeting }}</div>
   <div class="sub">what do you want to do?</div>
 

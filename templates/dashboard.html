@@ -430,7 +430,6 @@ let tasks = [], goals = [];
 let calView = { year: 0, month: 0 };
 let selectedDate = null;
 let showDone = false;
-let dashboardInitialized = false;
 
 function todayStr() {
   const d = new Date();
@@ -698,28 +697,23 @@ function renderCal() {
   }
 }
 
-// init
-function initDashboard() {
-  if (dashboardInitialized) return;
-
-  const calGrid = document.getElementById('cal-grid');
-  const calLabel = document.getElementById('cal-label');
-  const hdate = document.getElementById('hdate');
-  if (!calGrid || !calLabel || !hdate) {
-    requestAnimationFrame(initDashboard);
-    return;
-  }
-
-  dashboardInitialized = true;
+// ── Page init hook (called by shell.html after DOM is live) ─────────────────
+// Shell guarantees DOM is appended before calling this, so no polling needed.
+window.__pageInit = function initDashboard() {
   const now = new Date();
   calView = { year: now.getFullYear(), month: now.getMonth() };
   render();
   loadState();
-}
+};
 
-requestAnimationFrame(initDashboard);
-window.addEventListener('load', initDashboard);
-setInterval(() => { if (tasks.length) checkNotif(tasks.filter(t => !t.done && !t.stacked && t.date === todayStr()).length); }, 60000);
+// Interval is registered once per page load; shell.__pageDestroy clears it.
+const _notifInterval = setInterval(() => {
+  if (tasks.length) checkNotif(tasks.filter(t => !t.done && !t.stacked && t.date === todayStr()).length);
+}, 60000);
+
+window.__pageDestroy = function() {
+  clearInterval(_notifInterval);
+};
 </script>
 </body>
 </html>

@@ -262,13 +262,11 @@
   let searchQuery    = '';
   let _saveTimer     = null;
 
-  // ── Init ───────────────────────────────────────────────────────────────────
-  function initDocs() {
+  // ── Page init hook (called by shell.html after DOM is live) ────────────────
+  window.__pageInit = function initDocs() {
     renderGrid();
     loadDocs();
-  }
-
-  requestAnimationFrame(initDocs);
+  };
 
   // ── API ────────────────────────────────────────────────────────────────────
   async function api(method, path, body) {
@@ -502,6 +500,19 @@
   function esc(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
+
+  // ── Expose functions used by inline onclick attributes ────────────────────
+  // shell.html runs page scripts via new Function(), creating a local scope.
+  // onclick="fn()" resolves in window scope, so these must be on window.
+  const _docsGlobals = [
+    'backToList','createDoc','fmt','insertHeading','insertBullet',
+    'insertDivider','flushSave','openDeleteModal','closeDeleteModal','confirmDelete'
+  ];
+  _docsGlobals.forEach(name => { window[name] = eval(name); });
+
+  window.__pageDestroy = function() {
+    _docsGlobals.forEach(name => { delete window[name]; });
+  };
 </script>
 </body>
 </html>

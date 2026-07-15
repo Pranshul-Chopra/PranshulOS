@@ -162,9 +162,13 @@
 
 <script>
 // ── Navigation ──────────────────────────────────────────────────────────────
+//
+// Design: each page fragment exposes a single `window.__pageInit` function.
+// shell.html calls it AFTER the DOM is appended, eliminating the rAF race and
+// the stale-global problem (no guard flags survive across navigations because
+// page scripts run fresh inside a Function scope every time).
 
 let _currentPage = null;
-let _pageScripts = [];
 
 async function navigate(page) {
   if (_currentPage === page) return;
@@ -175,23 +179,28 @@ async function navigate(page) {
   const navBtn = document.getElementById('nav-' + page);
   if (navBtn) navBtn.classList.add('active');
 
-  // Fetch the page fragment
+  const content = document.getElementById('content');
+
   try {
     const res  = await fetch('/' + page + '?fragment=1');
     const html = await res.text();
 
-    const content = document.getElementById('content');
+    // ── 1. Teardown previous page ──────────────────────────────────────────
+    if (typeof window.__pageDestroy === 'function') {
+      try { window.__pageDestroy(); } catch(_) {}
+    }
+    window.__pageInit    = null;
+    window.__pageDestroy = null;
+
     content.innerHTML = '';
     content.classList.remove('fade-in');
 
-    // Parse and inject HTML + scripts
+    // ── 2. Parse fragment ──────────────────────────────────────────────────
     const parser = new DOMParser();
     const doc    = parser.parseFromString(html, 'text/html');
 
-    // Remove previously injected page styles
+    // ── 3. Swap styles (removes previous page styles first) ────────────────
     document.querySelectorAll('style[data-page]').forEach(s => s.remove());
-
-    // 1. Inject styles FIRST (from both head and any style tags in body fragment)
     doc.querySelectorAll('style').forEach(s => {
       const el = document.createElement('style');
       el.setAttribute('data-page', page);
@@ -199,7 +208,7 @@ async function navigate(page) {
       document.head.appendChild(el);
     });
 
-    // 2. Inject body content (non-script nodes)
+    // ── 4. Mount DOM ───────────────────────────────────────────────────────
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'height:100%;display:flex;flex-direction:column;min-height:0;';
     doc.body.childNodes.forEach(node => {
@@ -210,21 +219,35 @@ async function navigate(page) {
     content.appendChild(wrapper);
     content.classList.add('fade-in');
 
-    // 3. Run scripts last, after the fragment has been inserted into the DOM.
-    requestAnimationFrame(() => {
-      const scripts = doc.querySelectorAll('script');
-      for (const s of scripts) {
+    // ── 5. Execute scripts (DOM is already live at this point) ─────────────
+    // Scripts run in order; they should set window.__pageInit instead of
+    // calling init themselves. Shell calls __pageInit() below.
+    const scriptTexts = [];
+    doc.querySelectorAll('script').forEach(s => {
+      if (s.src) {
+        // external script — append normally (async, order not guaranteed)
         const el = document.createElement('script');
-        if (s.src) { el.src = s.src; }
-        else { el.textContent = s.textContent; }
+        el.src = s.src;
         document.head.appendChild(el);
-        document.head.removeChild(el);
+      } else {
+        scriptTexts.push(s.textContent);
       }
     });
 
+    // Run inline scripts synchronously in order via Function so they share
+    // no closure state with previous page loads.
+    for (const src of scriptTexts) {
+      try { new Function(src)(); } catch(e) { console.error('[navigate] script error on', page, e); }
+    }
+
+    // ── 6. Call the page's init hook now that DOM + scripts are both ready ─
+    if (typeof window.__pageInit === 'function') {
+      try { window.__pageInit(); } catch(e) { console.error('[navigate] __pageInit error on', page, e); }
+    }
+
   } catch (e) {
-    document.getElementById('content').innerHTML =
-      '<div style="padding:40px;font-family:monospace;color:#c87070;">Failed to load ' + page + '</div>';
+    content.innerHTML =
+      '<div style="padding:40px;font-family:monospace;color:#c87070;">Failed to load ' + page + ': ' + e.message + '</div>';
   }
 }
 
