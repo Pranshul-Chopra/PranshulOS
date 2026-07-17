@@ -27,114 +27,147 @@ _HOME_HTML = """<!DOCTYPE html>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #0c0c0c; --surface: #141414; --surface2: #1c1c1c;
-      --border: #272727; --border2: #333;
-      --text: #e8e6e1; --text2: #8a8880; --text3: #4a4845;
-      --amber: #e8a84c; --amber-dim: #7a5820; --amber-glow: rgba(232,168,76,0.08);
-      --radius: 12px;
+      --bg: #0c0c0c; --surface: #141414; --surface2: #1a1a1a;
+      --border: #242424; --border2: #2e2e2e;
+      --text: #e2e0db; --text2: #7a7872; --text3: #3e3d3a;
+      --amber: #e8a84c; --amber-dim: #6b4d1c; --amber-glow: rgba(232,168,76,0.06);
+      --radius: 10px;
       --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
     }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
-    .shell { max-width: 640px; margin: 0 auto; padding: 48px 24px 32px; }
-    .greeting { font-size: 24px; font-weight: 300; letter-spacing: -0.02em; margin-bottom: 6px; }
-    .greeting em { color: var(--amber); font-style: normal; }
-    .sub { font-size: 13px; color: var(--text3); font-family: var(--mono); margin-bottom: 36px; letter-spacing: 0.04em; }
-    .section-label { font-family: var(--mono); font-size: 10px; font-weight: 500; color: var(--text3); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 12px; }
-    .launch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 32px; }
-    .launch-btn {
-      padding: 16px 18px; border-radius: var(--radius);
-      background: var(--surface); border: 1px solid var(--border2);
-      color: var(--text); font-family: var(--sans); font-size: 14px;
-      text-align: left; cursor: pointer; transition: all 0.15s;
-      display: flex; align-items: center; gap: 10px;
+    html, body {
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: var(--sans); -webkit-font-smoothing: antialiased;
+      font-size: 15px; line-height: 1.6;
     }
-    .launch-btn:hover { background: var(--surface2); border-color: var(--amber-dim); }
-    .launch-btn .icon { font-size: 18px; }
-    .launch-btn .label { font-weight: 400; }
-    .launch-btn .desc { font-size: 11px; color: var(--text3); margin-top: 2px; font-family: var(--mono); }
-    .divider { height: 1px; background: var(--border); margin: 28px 0; }
-    .input-row { display: flex; gap: 10px; }
-    .input-box {
-      flex: 1; padding: 12px 16px; border-radius: var(--radius);
+    .shell { max-width: 600px; margin: 0 auto; padding: 52px 28px 40px; }
+
+    /* ── Greeting ── */
+    .greeting {
+      font-size: 26px; font-weight: 400; letter-spacing: -0.025em;
+      margin-bottom: 8px; color: var(--text); line-height: 1.25;
+    }
+    .greeting em { color: var(--amber); font-style: normal; }
+    .sub {
+      font-size: 14px; color: var(--text2); margin-bottom: 44px;
+      font-family: var(--sans); font-weight: 400;
+    }
+
+    /* ── Section label ── */
+    .section-label {
+      font-family: var(--mono); font-size: 10px; font-weight: 500;
+      color: var(--text3); letter-spacing: 0.07em;
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+
+    /* ── Launcher grid ── */
+    .launch-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 8px; margin-bottom: 36px;
+    }
+    .launch-btn {
+      padding: 18px 12px 16px; border-radius: var(--radius);
       background: var(--surface); border: 1px solid var(--border2);
-      color: var(--text); font-family: var(--sans); font-size: 14px; outline: none;
+      color: var(--text); font-family: var(--sans);
+      text-align: center; cursor: pointer;
+      transition: background 0.14s, border-color 0.14s, transform 0.1s;
+      display: flex; flex-direction: column; align-items: center; gap: 9px;
+    }
+    .launch-btn:hover {
+      background: var(--surface2); border-color: var(--amber-dim);
+      transform: translateY(-1px);
+    }
+    .launch-btn:active { transform: translateY(0); }
+    .launch-btn .icon { font-size: 22px; line-height: 1; }
+    .launch-btn .label {
+      font-size: 12px; font-weight: 400; color: var(--text2);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    /* ── Divider ── */
+    .divider { height: 1px; background: var(--border); margin: 32px 0; }
+
+    /* ── Command bar ── */
+    .cmd-bar {
+      display: flex; gap: 8px; align-items: center;
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: var(--radius); padding: 4px 4px 4px 16px;
       transition: border-color 0.15s;
     }
-    .input-box:focus { border-color: var(--amber-dim); }
-    .input-box::placeholder { color: var(--text3); }
-    .go-btn {
-      padding: 12px 24px; border-radius: var(--radius);
-      background: var(--amber); color: #0c0c0c; border: none;
-      font-family: var(--sans); font-size: 14px; font-weight: 500;
-      cursor: pointer; transition: opacity 0.15s;
+    .cmd-bar:focus-within { border-color: var(--amber-dim); }
+    .cmd-input {
+      flex: 1; background: transparent; border: none; outline: none;
+      color: var(--text); font-family: var(--sans); font-size: 14px;
+      padding: 8px 0; line-height: 1.4;
     }
-    .go-btn:hover { opacity: 0.85; }
+    .cmd-input::placeholder { color: var(--text3); }
+    .cmd-go {
+      padding: 8px 18px; border-radius: 7px;
+      background: var(--amber); color: #0c0c0c; border: none;
+      font-family: var(--sans); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: opacity 0.14s; white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .cmd-go:hover { opacity: 0.88; }
+
+    /* ── Log ── */
     .log {
-      margin-top: 16px; padding: 14px 16px; border-radius: var(--radius);
+      margin-top: 12px; padding: 13px 16px; border-radius: var(--radius);
       background: var(--surface); border: 1px solid var(--border);
       font-family: var(--mono); font-size: 12px; color: var(--text2);
-      min-height: 48px; line-height: 1.8;
+      min-height: 44px; line-height: 2;
     }
-    .log .entry { animation: fadein 0.2s ease; }
+    .log .entry { animation: fadein 0.18s ease; }
     .log .entry.you { color: var(--text); }
     .log .entry.reply { color: var(--amber); }
-    @keyframes fadein { from { opacity:0; transform: translateY(3px); } to { opacity:1; transform:none; } }
+    @keyframes fadein { from { opacity:0; transform: translateY(4px); } to { opacity:1; transform:none; } }
   </style>
 </head>
 <body>
 <div class="shell">
   <div class="greeting">{{ greeting }}</div>
-  <div class="sub">what do you want to do?</div>
+  <div class="sub">What do you want to open?</div>
 
-  <div class="section-label">Quick Launch</div>
+  <div class="section-label">Quick launch</div>
   <div class="launch-grid">
     <button class="launch-btn" onclick="launch('youtube')">
-      <span class="icon">🎬</span>
-      <div><div class="label">YouTube</div><div class="desc">Watch something</div></div>
+      <span class="icon">🎬</span><span class="label">YouTube</span>
     </button>
     <button class="launch-btn" onclick="launch('spotify')">
-      <span class="icon">🎵</span>
-      <div><div class="label">Spotify</div><div class="desc">Music</div></div>
+      <span class="icon">🎵</span><span class="label">Spotify</span>
     </button>
     <button class="launch-btn" onclick="launch('whatsapp')">
-      <span class="icon">💬</span>
-      <div><div class="label">WhatsApp</div><div class="desc">Web messages</div></div>
+      <span class="icon">💬</span><span class="label">WhatsApp</span>
     </button>
     <button class="launch-btn" onclick="launch('discord')">
-      <span class="icon">🎮</span>
-      <div><div class="label">Discord</div><div class="desc">Open web app</div></div>
+      <span class="icon">🎮</span><span class="label">Discord</span>
     </button>
     <button class="launch-btn" onclick="launch('github')">
-      <span class="icon">🐙</span>
-      <div><div class="label">GitHub</div><div class="desc">Open dashboard</div></div>
+      <span class="icon">🐙</span><span class="label">GitHub</span>
     </button>
     <button class="launch-btn" onclick="launch('linkedin')">
-      <span class="icon">🔗</span>
-      <div><div class="label">LinkedIn</div><div class="desc">Your profile</div></div>
+      <span class="icon">🔗</span><span class="label">LinkedIn</span>
     </button>
     <button class="launch-btn" onclick="launch('gmail')">
-      <span class="icon">✉️</span>
-      <div><div class="label">Gmail</div><div class="desc">Inbox</div></div>
+      <span class="icon">✉️</span><span class="label">Gmail</span>
     </button>
     <button class="launch-btn" onclick="launch('reddit')">
-      <span class="icon">👽</span>
-      <div><div class="label">Reddit</div><div class="desc">Browse</div></div>
+      <span class="icon">👽</span><span class="label">Reddit</span>
     </button>
   </div>
 
   <div class="divider"></div>
   <div class="section-label">Or just tell me</div>
-  <div class="input-row">
-    <input class="input-box" id="inp" placeholder='e.g. "bored" or "github"…' onkeydown="if(event.key==='Enter') go()"/>
-    <button class="go-btn" onclick="go()">Go</button>
+  <div class="cmd-bar">
+    <input class="cmd-input" id="inp" placeholder='try "bored", "github", "spotify"…' onkeydown="if(event.key==='Enter') go()"/>
+    <button class="cmd-go" onclick="go()">Go</button>
   </div>
-  <div class="log" id="log"><span style="color:var(--text3)">→ hey! what do you need?</span></div>
+  <div class="log" id="log"><span style="color:var(--text3)">→ what do you need?</span></div>
 </div>
 <script>
 async function launch(appName) {
   try {
-    const res = await fetch('/launch/' + appName);
-    const data = await res.json();
+    await fetch('/launch/' + appName);
     addLog('→ opened ' + appName, 'reply');
   } catch(e) {
     addLog('→ error opening ' + appName, 'reply');
@@ -144,7 +177,7 @@ async function go() {
   const inp = document.getElementById('inp');
   const text = inp.value.trim();
   if (!text) return;
-  addLog('You: ' + text, 'you');
+  addLog('you: ' + text, 'you');
   inp.value = '';
   try {
     const res = await fetch('/api/trigger', {
@@ -153,14 +186,14 @@ async function go() {
       body: JSON.stringify({text})
     });
     const data = await res.json();
-    addLog(data.result ? '→ ' + data.result : "→ Didn't catch that. Try 'bored', 'github', 'spotify'…", 'reply');
+    addLog(data.result ? '→ ' + data.result : "→ didn't catch that — try 'bored', 'github', 'discord'…", 'reply');
   } catch(e) {
     addLog('→ error', 'reply');
   }
 }
 function addLog(text, cls) {
   const log = document.getElementById('log');
-  if (log.children.length === 0 || log.querySelector('span')) log.innerHTML = '';
+  if (log.querySelector('span')) log.innerHTML = '';
   const el = document.createElement('div');
   el.className = 'entry ' + cls;
   el.textContent = text;
@@ -309,7 +342,18 @@ def api_delete_doc(doc_id):
 # HTML calls fetch('/launch/youtube') etc. Flask opens the URL in the
 # system default browser via webbrowser.open().
 
-import webbrowser
+import subprocess as _sp
+
+def _open_url(url: str) -> None:
+    """Open a URL in the user's existing default browser (new tab, not new process).
+    Uses Windows 'start' shell command so the browser reuses its running instance
+    instead of spawning a fresh one — avoids RAM spikes from webbrowser.open()."""
+    try:
+        _sp.Popen(["cmd", "/c", "start", "", url],
+                  stdout=_sp.DEVNULL,
+                  stderr=_sp.DEVNULL)
+    except Exception as e:
+        print(f"[launch] failed to open {url}: {e}")
 
 _LAUNCH_URLS = {
     "youtube":       "https://youtube.com",
@@ -363,7 +407,7 @@ _TRIGGER_MAP = {
 def launch_app(app_name):
     url = _LAUNCH_URLS.get(app_name)
     if url:
-        webbrowser.open(url)
+        _open_url(url)
         return jsonify({"status": "ok", "opened": url})
     return jsonify({"status": "error", "message": "unknown app"}), 404
 
@@ -377,7 +421,7 @@ def trigger():
         if keyword in text and app_name not in fired:
             url = _LAUNCH_URLS.get(app_name)
             if url:
-                webbrowser.open(url)
+                _open_url(url)
                 results.append(f"Opened {app_name}")
                 fired.add(app_name)
     return jsonify({
