@@ -46,57 +46,60 @@
       height: 100vh;
     }
     .sb-logo {
-      padding: 20px 16px 14px;
+      padding: 22px 18px 16px;
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
-      letter-spacing: 0.15em;
+      letter-spacing: 0.08em;
       color: var(--amber);
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
     .sb-nav {
-      padding: 12px 8px;
+      padding: 14px 10px;
       flex: 1;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 3px;
     }
     .sb-section {
-      padding: 10px 8px 4px;
+      padding: 14px 8px 5px;
       font-family: var(--mono);
       font-size: 9px;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.07em;
       color: var(--text3);
       text-transform: uppercase;
     }
     .sb-btn {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 9px;
       width: 100%;
-      padding: 8px 10px;
+      padding: 9px 12px;
       border-radius: 8px;
       border: none;
       background: transparent;
-      color: var(--text3);
-      font-family: var(--mono);
-      font-size: 12px;
+      color: var(--text2);
+      font-family: var(--sans);
+      font-size: 13px;
       text-align: left;
       cursor: pointer;
       transition: all 0.15s;
+      line-height: 1.3;
     }
-    .sb-btn:hover { background: var(--surface2); color: var(--text2); }
+    .sb-btn:hover { background: var(--surface2); color: var(--text); }
     .sb-btn.active { background: var(--surface2); color: var(--amber); }
-    .sb-btn .sb-icon { font-size: 14px; flex-shrink: 0; }
+    .sb-btn .sb-icon { font-size: 15px; flex-shrink: 0; opacity: 0.7; }
+    .sb-btn.active .sb-icon { opacity: 1; }
     .sb-ver {
-      padding: 12px 16px;
+      padding: 12px 18px;
       font-family: var(--mono);
       font-size: 9px;
       color: var(--text3);
       border-top: 1px solid var(--border);
       flex-shrink: 0;
+      letter-spacing: 0.04em;
     }
 
     /* ── Main content area ── */
@@ -131,7 +134,7 @@
   <aside class="sidebar">
     <div class="sb-logo">PranshulOS</div>
     <nav class="sb-nav">
-      <div class="sb-section">Navigate</div>
+      <div class="sb-section">Pages</div>
       <button class="sb-btn" id="nav-home" onclick="navigate('home')">
         <span class="sb-icon">🏠</span> Home
       </button>
@@ -141,14 +144,6 @@
       <button class="sb-btn" id="nav-docs" onclick="navigate('docs')">
         <span class="sb-icon">📝</span> Docs
       </button>
-
-      <div class="sb-section" style="margin-top:8px;">Apps</div>
-      <button class="sb-btn" onclick="launch('youtube')"><span class="sb-icon">🎬</span> YouTube</button>
-      <button class="sb-btn" onclick="launch('spotify')"><span class="sb-icon">🎵</span> Spotify</button>
-      <button class="sb-btn" onclick="launch('whatsapp')"><span class="sb-icon">💬</span> WhatsApp</button>
-      <button class="sb-btn" onclick="launch('discord')"><span class="sb-icon">🎮</span> Discord</button>
-      <button class="sb-btn" onclick="launch('github')"><span class="sb-icon">🐙</span> GitHub</button>
-      <button class="sb-btn" onclick="launch('gmail')"><span class="sb-icon">✉️</span> Gmail</button>
     </nav>
     <div class="sb-ver">v2.1 · pranshulos</div>
   </aside>
