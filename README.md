@@ -79,8 +79,8 @@ npx electron .
 ```bash
 # Requires: Python 3.13 venv (venv313) + Node.js
 
-py -3.13 -m venv venv313
-venv313\Scripts\activate
+py -3.11 -m venv venv311
+venv311\Scripts\activate
 pip install -r requirements.txt pyinstaller pyinstaller-hooks-contrib
 mkdir static
 cd electron && npm install && cd ..
