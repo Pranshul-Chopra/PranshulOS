@@ -4,37 +4,44 @@ A local-first, Windows desktop productivity shell — built with Flask, Electron
 
 ## What it does
 
-- **Home** — quick-launch tiles and a natural-language command bar ("bored", "github", "spotify"...) that opens the general web apps you actually use
+- **Home** — a configurable quick-launch grid and a natural-language command bar ("bored", "github", "spotify"...) that opens the web apps you actually use. Add your own launchers with a name, icon, and URL — they persist across sessions and can be removed any time.
 - **Dashboard** — daily tasks and longer-term goals, with automatic day-to-day rollover for anything left unfinished
 - **Docs** — a lightweight local notes/writing space with a document list view and full editor
-- **Persistent sidebar** — navigate between Home, Dashboard, and Docs at any time without losing context, plus quick-access app launchers always visible on the left
+- **Persistent sidebar** — navigate between Home, Dashboard, and Docs at any time without losing context
 - **Notifications** — Windows toast reminders for pending tasks (11 PM + 11:30 PM nudge), and a background check for new app versions
+
+## What changed in v2.2
+
+- **Configurable launchers** — the quick-launch grid on the home page now supports user-defined launchers. Click the `+` tile, give it a name, an emoji icon, and a URL. Custom launchers are stored in the local SQLite database and appear alongside the built-in ones. Hover any custom launcher to reveal a delete button.
+- **Sidebar cleanup** — the Apps section (hardcoded launcher buttons in the sidebar) has been removed. The sidebar is now navigation-only: Home, Dashboard, Docs. This keeps the panel clean and reserves space for future pages.
+- **Home page redesign** — launcher grid changed from a 2-column list to a 4-column icon grid. Font sizes increased, letter-spacing reduced, subtitle and nav labels switched from monospace to sans-serif. The command bar is now a single integrated input pill.
+- **RAM fix (BUG-2026-002)** — launcher clicks previously called `webbrowser.open()`, which spawns a fresh browser process (300–600 MB) on every click. Replaced with `cmd /c start`, which routes the URL to the already-running browser as a new tab. RAM impact per launch is now negligible.
+
+## What changed in v2.1
+
+- **Migrated from pywebview to Electron** — pywebview's Windows backend requires a fragile pythonnet/.NET bridge that consistently broke under PyInstaller packaging. Electron uses bundled Chromium with no .NET dependency, making the packaged app reliable on any Windows machine.
+- **Proper Windows installer** — ships as an NSIS installer (`PranshulOS Setup 2.1.0.exe`) that creates Desktop and Start Menu shortcuts automatically. No zip extraction, no bat files, no manual setup.
+- **Persistent sidebar navigation** — single-page shell with a fixed left sidebar; page content swaps in the right panel without full page reloads.
+- **Docs redesigned** — list-first view showing all documents as cards with content previews. Click a card to open the full editor. "← back" returns to the list.
+- **Flask routes replace JS bridge** — all app-launcher actions previously handled by `window.pywebview.api` are now clean Flask endpoints (`/launch/<app>`).
 
 ## Why v2.0 looks different from earlier builds
 
-Earlier versions of this project experimented with an embedded AI chatbot (local LLM via Ollama) and a "Screen Assist" feature that captured your screen and fed it to a vision model for contextual help. Both were removed in v2.0. Reasoning:
+Earlier versions experimented with an embedded AI chatbot (local LLM via Ollama) and a "Screen Assist" feature that captured your screen and fed it to a vision model. Both were removed in v2.0:
 
-- **Structural integrity** — bolting a chat interface, a memory/retrieval pipeline, and a vision pipeline onto what's fundamentally a lightweight desktop shell turned a ~1,000-line app into something with far more moving parts than its actual job required. Every new feature increased the surface area for bugs unrelated to the app's core purpose.
+- **Structural integrity** — bolting a chat interface, memory pipeline, and vision pipeline onto a lightweight desktop shell turned a ~1,000-line app into something with far more moving parts than its actual job required.
 - **Maintainability** — a chatbot with memory retrieval, tool routing, and streaming responses is a genuinely different category of software than a task/dashboard app. Maintaining both well, alone, meant neither got the attention it deserved.
-- **Server/runtime cost** — running a local LLM well means real GPU/CPU overhead on every launch, even for people who just want to check their task list. That's a heavy default cost to impose on every user for a feature only some of them would use.
-- **Local-first philosophy** — this project's actual value is being simple, fast, and entirely yours. AI chat and screen capture features pulled it toward being a different product entirely. Cutting them was a decision to do fewer things well rather than many things adequately.
+- **Runtime cost** — running a local LLM means real GPU/CPU overhead on every launch, even for users who just want to check their task list.
+- **Local-first philosophy** — this project's value is being simple, fast, and entirely yours. The AI features pulled it toward being a different product. Cutting them was a decision to do fewer things well.
 
-The AI-assisted concepts explored here may return later as a separate, standalone project (not bundled into a task manager), where they can be designed and maintained properly on their own terms.
-
-## What changed in v2.1 specifically
-
-- **Migrated from pywebview to Electron** — pywebview's Windows backend requires a fragile pythonnet/.NET bridge that consistently broke under PyInstaller packaging across multiple Python versions and build configurations. Electron uses bundled Chromium with no .NET dependency, making the packaged app reliable on any Windows machine.
-- **Proper Windows installer** — ships as an NSIS installer (`PranshulOS Setup 2.1.0.exe`) that creates Desktop and Start Menu shortcuts automatically. No zip extraction, no bat files, no manual setup.
-- **Persistent sidebar navigation** — single-page shell with a fixed left sidebar; Home/Dashboard/Docs content swaps in the right panel without full page reloads.
-- **Docs redesigned** — list-first view showing all documents as cards with content previews. Click a card to open the full editor. "← back" returns to the list.
-- **Flask routes replace JS bridge** — all app-launcher actions previously handled by `window.pywebview.api` are now clean Flask endpoints (`/launch/<app>`), making the frontend simpler and more portable.
+The AI concepts explored here may return as a separate standalone project, where they can be designed and maintained properly on their own terms.
 
 ## What changed in v2.0
 
-- Removed all local desktop-app launchers (Outlook, work-mode shortcuts, direct Steam/Warframe launches) in favor of plain web links for general-purpose apps (YouTube, Spotify, Discord, GitHub, LinkedIn, Gmail, Reddit, WhatsApp, Twitch, Roblox, ChatGPT)
-- Fixed hardcoded, machine-specific file paths so the app actually runs on machines other than the original dev machine
-- Moved the SQLite database to `%LOCALAPPDATA%`, so user data survives reinstalls and future updates
-- Added a lightweight, non-blocking update checker — pings a version manifest on startup, shows a toast if a newer release is available, fails silently offline
+- Removed local desktop-app launchers in favor of plain web links for general-purpose apps
+- Fixed hardcoded, machine-specific file paths
+- Moved the SQLite database to `%LOCALAPPDATA%` so user data survives reinstalls
+- Added a lightweight, non-blocking update checker
 
 ## Installation
 
@@ -70,10 +77,10 @@ npx electron .
 ## Building a release
 
 ```bash
-# Requires: Python 3.11 venv (venv311) + Node.js
+# Requires: Python 3.13 venv (venv313) + Node.js
 
-py -3.11 -m venv venv311
-venv311\Scripts\activate
+py -3.13 -m venv venv313
+venv313\Scripts\activate
 pip install -r requirements.txt pyinstaller pyinstaller-hooks-contrib
 mkdir static
 cd electron && npm install && cd ..
