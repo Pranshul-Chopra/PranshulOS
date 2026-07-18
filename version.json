@@ -1,5 +1,5 @@
 {
-  "latest_version": "2.1.0",
-  "download_url": "https://github.com/Pranshul-Chopra/PranshulOS/releases/download/v2.1.0/PranshulOS%20Setup%202.1.0.exe",
-  "notes": "Migrated to Electron. Persistent sidebar, docs list/editor flow, proper Windows installer."
+  "latest_version": "2.2.0",
+  "download_url": "https://github.com/Pranshul-Chopra/PranshulOS/releases/download/v2.2.0/PranshulOS.Setup.2.2.0.exe",
+  "notes": "NEW UI,CONFIGURABLE LAUNCHERS AND MEMORY OPTIMIZATIONS"
 }
