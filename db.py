@@ -33,7 +33,7 @@ if _legacy_path.exists() and not DB_PATH.exists():
     shutil.copy2(_legacy_path, DB_PATH)
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 # ── Connection pool ────────────────────────────────────────────────────────────
@@ -115,6 +115,17 @@ def _run_migrations(con: sqlite3.Connection) -> None:
     for changes to tables that already exist on someone's machine.
     """
     current = _get_schema_version(con)
+    if current < 2:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS launchers ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "name TEXT NOT NULL,"
+            "kind TEXT NOT NULL CHECK(kind IN ('url','path')),"
+            "target TEXT NOT NULL,"
+            "icon TEXT NOT NULL DEFAULT '🚀',"
+            "position INTEGER NOT NULL DEFAULT 0,"
+            "created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+        )
     if current < SCHEMA_VERSION:
         _set_schema_version(con, SCHEMA_VERSION)
 
@@ -147,6 +158,16 @@ def init_db() -> None:
                 content    TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS launchers (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT NOT NULL,
+                kind       TEXT NOT NULL CHECK(kind IN ('url', 'path')),
+                target     TEXT NOT NULL,
+                icon       TEXT NOT NULL DEFAULT '🚀',
+                position   INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
         """)
         _run_migrations(con)
@@ -277,4 +298,36 @@ def update_doc(doc_id: int, title: str | None = None, content: str | None = None
 def delete_doc(doc_id: int) -> bool:
     with _conn() as con:
         cur = con.execute("DELETE FROM docs WHERE id = ?", (doc_id,))
+    return cur.rowcount > 0
+
+
+# ── Launchers ──────────────────────────────────────────────────────────────────
+
+def get_launchers() -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM launchers ORDER BY position ASC, created_at ASC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_launcher(name: str, kind: str, target: str, icon: str = "🚀") -> dict:
+    with _conn() as con:
+        cur = con.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM launchers"
+        )
+        next_pos = cur.fetchone()[0]
+        cur = con.execute(
+            "INSERT INTO launchers (name, kind, target, icon, position) VALUES (?, ?, ?, ?, ?)",
+            (name.strip(), kind, target.strip(), icon.strip() or "🚀", next_pos)
+        )
+        row = con.execute(
+            "SELECT * FROM launchers WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+    return dict(row)
+
+
+def delete_launcher(launcher_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute("DELETE FROM launchers WHERE id = ?", (launcher_id,))
     return cur.rowcount > 0
