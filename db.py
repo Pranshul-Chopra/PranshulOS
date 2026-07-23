@@ -33,7 +33,7 @@ if _legacy_path.exists() and not DB_PATH.exists():
     shutil.copy2(_legacy_path, DB_PATH)
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 # ── Connection pool ────────────────────────────────────────────────────────────
@@ -126,6 +126,20 @@ def _run_migrations(con: sqlite3.Connection) -> None:
             "position INTEGER NOT NULL DEFAULT 0,"
             "created_at TEXT NOT NULL DEFAULT (datetime('now')))"
         )
+    if current < 3:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS routine_items ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "text TEXT NOT NULL,"
+            "position INTEGER NOT NULL DEFAULT 0,"
+            "created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+        )
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS routine_checks ("
+            "item_id INTEGER NOT NULL REFERENCES routine_items(id) ON DELETE CASCADE,"
+            "date TEXT NOT NULL,"
+            "PRIMARY KEY (item_id, date))"
+        )
     if current < SCHEMA_VERSION:
         _set_schema_version(con, SCHEMA_VERSION)
 
@@ -168,6 +182,19 @@ def init_db() -> None:
                 icon       TEXT NOT NULL DEFAULT '🚀',
                 position   INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS routine_items (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                text       TEXT NOT NULL,
+                position   INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS routine_checks (
+                item_id    INTEGER NOT NULL REFERENCES routine_items(id) ON DELETE CASCADE,
+                date       TEXT NOT NULL,
+                PRIMARY KEY (item_id, date)
             );
         """)
         _run_migrations(con)
@@ -331,3 +358,63 @@ def delete_launcher(launcher_id: int) -> bool:
     with _conn() as con:
         cur = con.execute("DELETE FROM launchers WHERE id = ?", (launcher_id,))
     return cur.rowcount > 0
+
+# ── Routines ───────────────────────────────────────────────────────────────────
+
+def get_routine_items(date: str) -> list[dict]:
+    """Return all template items with a 'checked' bool for the given date."""
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT ri.id, ri.text, ri.position, ri.created_at, "
+            "  CASE WHEN rc.item_id IS NOT NULL THEN 1 ELSE 0 END AS checked "
+            "FROM routine_items ri "
+            "LEFT JOIN routine_checks rc ON rc.item_id = ri.id AND rc.date = ? "
+            "ORDER BY ri.position ASC, ri.created_at ASC",
+            (date,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_routine_item(text: str) -> dict:
+    with _conn() as con:
+        cur = con.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM routine_items")
+        next_pos = cur.fetchone()[0]
+        cur = con.execute(
+            "INSERT INTO routine_items (text, position) VALUES (?, ?)",
+            (text.strip(), next_pos)
+        )
+        row = con.execute(
+            "SELECT * FROM routine_items WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+    return dict(row)
+
+
+def delete_routine_item(item_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute("DELETE FROM routine_items WHERE id = ?", (item_id,))
+    return cur.rowcount > 0
+
+
+def set_routine_check(item_id: int, date: str, checked: bool) -> bool:
+    with _conn() as con:
+        if checked:
+            con.execute(
+                "INSERT OR IGNORE INTO routine_checks (item_id, date) VALUES (?, ?)",
+                (item_id, date)
+            )
+        else:
+            con.execute(
+                "DELETE FROM routine_checks WHERE item_id = ? AND date = ?",
+                (item_id, date)
+            )
+    return True
+
+
+def get_routine_progress(date: str) -> dict:
+    """Return {total, done} counts for a given date."""
+    with _conn() as con:
+        total = con.execute("SELECT COUNT(*) FROM routine_items").fetchone()[0]
+        done  = con.execute(
+            "SELECT COUNT(*) FROM routine_checks WHERE date = ?", (date,)
+        ).fetchone()[0]
+    return {"total": total, "done": done}
