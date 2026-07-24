@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Bump this on every release you cut. Also bump the version string in
 # your PyInstaller build / GitHub tag to match.
-CURRENT_VERSION = "2.1.0"
+CURRENT_VERSION = "2.2.0"
 
 # Raw JSON file living in your GitHub repo (or a GitHub Release asset URL).
 # Example using a raw file on the main branch:
