@@ -1,0 +1,712 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tickets</title>
+    <link rel="stylesheet" href="/static/fonts/ibmflex.css" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0c0c0c;
+        --surface: #141414;
+        --surface2: #1c1c1c;
+        --border: #272727;
+        --border2: #333333;
+        --text: #e8e6e1;
+        --text2: #8a8880;
+        --text3: #4a4845;
+        --amber: #e8a84c;
+        --amber-dim: #7a5820;
+        --amber-glow: rgba(232, 168, 76, 0.07);
+        --amber-glow2: rgba(232, 168, 76, 0.14);
+        --mono: 'IBM Plex Mono', monospace;
+        --sans: 'IBM Plex Sans', sans-serif;
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+        overflow: hidden;
+      }
+
+      .shell {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 20px;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
+        flex-shrink: 0;
+        height: 44px;
+      }
+
+      .logo {
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: var(--amber);
+      }
+
+      .h-sep {
+        width: 1px;
+        height: 14px;
+        background: var(--border2);
+      }
+
+      .h-title {
+        font-size: 12px;
+        color: var(--text2);
+        font-family: var(--mono);
+        letter-spacing: 0.04em;
+      }
+
+      .content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        gap: 16px;
+        overflow: hidden;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .section-title {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        color: var(--amber);
+        text-transform: uppercase;
+      }
+
+      .btn {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--amber);
+        background: var(--amber-glow);
+        border: 1px solid var(--amber-dim);
+        padding: 7px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s;
+      }
+
+      .btn:hover { background: var(--amber-glow2); border-color: var(--amber); }
+      .board {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .column {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .column-header {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .column-title {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        color: var(--amber);
+        text-transform: uppercase;
+      }
+
+      .column-count {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--text3);
+      }
+
+      .ticket-list {
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow-y: auto;
+        flex: 1;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border2) transparent;
+      }
+
+      .ticket-list::-webkit-scrollbar { width: 3px; height: 3px; }
+      .ticket-list::-webkit-scrollbar-track { background: transparent; }
+      .ticket-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 999px; }
+
+      .ticket-card {
+        background: var(--surface2);
+        border: 1px solid var(--border2);
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        cursor: grab;
+        transition: border-color 0.15s, background 0.15s;
+      }
+
+      .ticket-card:hover { border-color: var(--amber-dim); background: rgba(232, 168, 76, 0.04); }
+      .ticket-card.dragging { opacity: 0.6; }
+      .ticket-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .ticket-subject {
+        font-weight: 500;
+        color: var(--text);
+      }
+
+      .ticket-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        color: var(--text2);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: 999px;
+        padding: 4px 8px;
+        font-size: 10px;
+        font-family: var(--mono);
+        letter-spacing: 0.04em;
+        background: rgba(255,255,255,0.06);
+      }
+
+      .pill.p0 { color: #fecaca; background: rgba(239, 68, 68, 0.16); }
+      .pill.p1 { color: #fde68a; background: rgba(245, 158, 11, 0.16); }
+      .pill.p2 { color: #bfdbfe; background: rgba(56, 189, 248, 0.16); }
+      .pill.p3 { color: #bbf7d0; background: rgba(34, 197, 85, 0.16); }
+
+      .ticket-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+      .link-btn {
+        background: none;
+        border: none;
+        color: var(--amber);
+        padding: 0;
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 1000;
+      }
+
+      .modal-backdrop.open { display: flex; }
+      .modal {
+        width: min(520px, 100%);
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .modal h3 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 500;
+      }
+
+      .field { display: flex; flex-direction: column; gap: 6px; }
+      .field label {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        color: var(--text3);
+        text-transform: uppercase;
+      }
+
+      .field input, .field select, .field textarea {
+        border: 1px solid var(--border2);
+        background: var(--surface2);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family: var(--sans);
+        outline: none;
+      }
+
+      .field textarea {
+        resize: none;
+        min-height: 112px;
+        max-height: 220px;
+        overflow-y: auto;
+      }
+
+      .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--amber-dim); }
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 4px;
+      }
+
+      .empty-state {
+        color: var(--text2);
+        text-align: center;
+        padding: 24px 16px;
+        border: 1px dashed var(--border2);
+        border-radius: 8px;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      /* Custom context menu for tickets */
+      #ticket-context-menu {
+        position: fixed;
+        z-index: 2000;
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+        min-width: 160px;
+        overflow: hidden;
+        display: none;
+        padding: 6px 6px;
+      }
+      #ticket-context-menu.visible { display: block; }
+      #ticket-context-menu .cm-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 10px; cursor: pointer; font-family: var(--mono);
+        font-size: 12px; color: var(--text2); border-radius: 6px;
+      }
+      #ticket-context-menu .cm-item:hover { background: rgba(232,168,76,0.04); color: var(--text); }
+
+      @media (max-width: 900px) {
+        .board { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <span class="logo">PranshulOS</span>
+        <div class="h-sep"></div>
+        <span class="h-title">tickets</span>
+      </header>
+
+      <div class="content">
+        <div class="toolbar">
+          <div class="section-title">Ticket board</div>
+          <button class="btn" id="new-ticket-btn">+ New ticket</button>
+        </div>
+
+        <div class="board">
+          <section class="column" data-status="active">
+            <div class="column-header">
+              <div>
+                <div class="column-title">Active</div>
+                <div class="column-count" id="active-count">0 tickets</div>
+              </div>
+            </div>
+            <div class="ticket-list" id="active-list"></div>
+          </section>
+          <section class="column" data-status="done">
+            <div class="column-header">
+              <div>
+                <div class="column-title">Done</div>
+                <div class="column-count" id="done-count">0 tickets</div>
+              </div>
+            </div>
+            <div class="ticket-list" id="done-list"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="ticket-modal">
+      <div class="modal" role="dialog" aria-modal="true">
+        <h3 id="modal-title">New ticket</h3>
+        <div class="field">
+          <label for="ticket-subject">Subject</label>
+          <input id="ticket-subject" maxlength="120" />
+        </div>
+        <div class="field">
+          <label for="ticket-description">Description</label>
+          <textarea id="ticket-description" rows="5"></textarea>
+        </div>
+        <div class="field">
+          <label for="ticket-priority">Priority</label>
+          <select id="ticket-priority">
+            <option value="p0">P0</option>
+            <option value="p1">P1</option>
+            <option value="p2" selected>P2</option>
+            <option value="p3">P3</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="ticket-due">Due date</label>
+          <input id="ticket-due" type="date" />
+        </div>
+        <div class="field">
+          <label>Time slot <span style="color:var(--text3);font-size:9px;letter-spacing:0.02em;text-transform:none;">(optional)</span></label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="ticket-time-start" type="time" style="flex:1;" />
+            <span style="color:var(--text3);font-family:var(--mono);font-size:11px;">–</span>
+            <input id="ticket-time-end" type="time" style="flex:1;" />
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" id="cancel-ticket-btn">Cancel</button>
+          <button class="btn btn-primary" id="save-ticket-btn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const state = { tickets: [], editingId: null };
+      const activeList = document.getElementById('active-list');
+      const doneList = document.getElementById('done-list');
+      const activeCount = document.getElementById('active-count');
+      const doneCount = document.getElementById('done-count');
+      const modal = document.getElementById('ticket-modal');
+      const modalTitle = document.getElementById('modal-title');
+      const subjectInput = document.getElementById('ticket-subject');
+      const descriptionInput = document.getElementById('ticket-description');
+      const priorityInput = document.getElementById('ticket-priority');
+      const dueInput = document.getElementById('ticket-due');
+      const timeStartInput = document.getElementById('ticket-time-start');
+      const timeEndInput = document.getElementById('ticket-time-end');
+      const pageListeners = [];
+
+      function registerPageListener(target, eventName, handler, options) {
+        target.addEventListener(eventName, handler, options);
+        pageListeners.push({ target, eventName, handler, options });
+      }
+
+      function formatPriority(value) {
+        return value ? value.toUpperCase() : 'P2';
+      }
+
+      function fmtTime(t) {
+        if (!t) return '';
+        const [h, m] = t.split(':');
+        const hr = parseInt(h, 10);
+        const suffix = hr >= 12 ? 'pm' : 'am';
+        const disp = ((hr % 12) || 12) + ':' + m + suffix;
+        return disp;
+      }
+
+      function render() {
+        const active = state.tickets.filter((ticket) => !ticket.done);
+        const done = state.tickets.filter((ticket) => ticket.done);
+        activeCount.textContent = `${active.length} ticket${active.length === 1 ? '' : 's'}`;
+        doneCount.textContent = `${done.length} ticket${done.length === 1 ? '' : 's'}`;
+        activeList.innerHTML = '';
+        doneList.innerHTML = '';
+
+        const renderColumn = (listEl, items) => {
+          if (!items.length) {
+            listEl.innerHTML = '<div class="empty-state">No tickets here yet.</div>';
+            return;
+          }
+          items.forEach((ticket) => {
+            const card = document.createElement('article');
+            card.className = 'ticket-card';
+            card.dataset.id = ticket.id;
+            card.draggable = true;
+            card.addEventListener('click', (event) => {
+              if (event.target.closest('button')) return;
+              const id = Number(card.dataset.id);
+              const current = state.tickets.find((item) => item.id === id);
+              if (current) openModal(current);
+            });
+            const timeLabel = ticket.time_start
+              ? `<span>🕐 ${fmtTime(ticket.time_start)}${ticket.time_end ? ' – ' + fmtTime(ticket.time_end) : ''}</span>`
+              : '';
+            card.innerHTML = `
+              <div class="ticket-top">
+                <div class="ticket-subject">${escapeHtml(ticket.subject)}</div>
+                <div class="pill ${ticket.priority}">${formatPriority(ticket.priority)}</div>
+              </div>
+              <div class="ticket-meta">
+                ${ticket.due_at ? `<span>Due ${escapeHtml(ticket.due_at)}</span>` : ''}
+                ${timeLabel}
+              </div>
+              <div class="ticket-meta">${escapeHtml(ticket.description || 'No description')}</div>
+              <div class="ticket-actions">
+                <button class="link-btn" data-action="edit">Edit</button>
+                <button class="link-btn" data-action="done">${ticket.done ? 'Reopen' : 'Done'}</button>
+                <button class="link-btn" data-action="delete">Delete</button>
+              </div>`;
+            listEl.appendChild(card);
+          });
+        };
+
+        renderColumn(activeList, active);
+        renderColumn(doneList, done);
+      }
+
+      function escapeHtml(value) {
+        return String(value || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      async function loadTickets() {
+        const response = await fetch('/api/tickets');
+        state.tickets = await response.json();
+        render();
+      }
+
+      function openModal(ticket = null) {
+        state.editingId = ticket ? ticket.id : null;
+        modalTitle.textContent = ticket ? 'Edit ticket' : 'New ticket';
+        subjectInput.value = ticket ? ticket.subject : '';
+        descriptionInput.value = ticket ? ticket.description : '';
+        priorityInput.value = ticket ? ticket.priority : 'p2';
+        dueInput.value = ticket ? (ticket.due_at || '') : '';
+        timeStartInput.value = ticket ? (ticket.time_start || '') : '';
+        timeEndInput.value = ticket ? (ticket.time_end || '') : '';
+        modal.classList.add('open');
+      }
+
+      function closeModal() {
+        modal.classList.remove('open');
+        state.editingId = null;
+        subjectInput.value = '';
+        descriptionInput.value = '';
+        priorityInput.value = 'p2';
+        dueInput.value = '';
+        timeStartInput.value = '';
+        timeEndInput.value = '';
+      }
+
+      async function saveTicket() {
+        const payload = {
+          subject: subjectInput.value.trim(),
+          description: descriptionInput.value.trim(),
+          priority: priorityInput.value,
+          due_at: dueInput.value || null,
+          time_start: timeStartInput.value || null,
+          time_end: timeEndInput.value || null,
+        };
+        if (!payload.subject) return;
+
+        const method = state.editingId ? 'PATCH' : 'POST';
+        const url = state.editingId ? `/api/tickets/${state.editingId}` : '/api/tickets';
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (response.ok) {
+          closeModal();
+          await loadTickets();
+        }
+      }
+
+      async function deleteTicket(id) {
+        if (!confirm('Delete this ticket?')) return;
+        const response = await fetch(`/api/tickets/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+          await loadTickets();
+        }
+      }
+
+      async function toggleDone(id) {
+        const ticket = state.tickets.find((item) => item.id === id);
+        if (!ticket) return;
+        await fetch(`/api/tickets/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ done: !ticket.done }),
+        });
+        await loadTickets();
+      }
+
+      registerPageListener(document.getElementById('new-ticket-btn'), 'click', () => openModal());
+      registerPageListener(document.getElementById('cancel-ticket-btn'), 'click', closeModal);
+      registerPageListener(document.getElementById('save-ticket-btn'), 'click', saveTicket);
+      registerPageListener(modal, 'click', (event) => {
+        if (event.target === modal) closeModal();
+      });
+
+      registerPageListener(document, 'click', async (event) => {
+        const button = event.target.closest('button[data-action]');
+        if (!button) return;
+        const card = button.closest('.ticket-card');
+        if (!card) return;
+        const id = Number(card.dataset.id);
+        if (button.dataset.action === 'edit') {
+          const ticket = state.tickets.find((item) => item.id === id);
+          if (ticket) openModal(ticket);
+        } else if (button.dataset.action === 'done') {
+          await toggleDone(id);
+        } else if (button.dataset.action === 'delete') {
+          await deleteTicket(id);
+        }
+      });
+
+      registerPageListener(document, 'dragstart', (event) => {
+        const card = event.target.closest('.ticket-card');
+        if (!card) return;
+        card.classList.add('dragging');
+        event.dataTransfer.setData('text/plain', card.dataset.id);
+      });
+
+      registerPageListener(document, 'dragend', (event) => {
+        const card = event.target.closest('.ticket-card');
+        if (card) card.classList.remove('dragging');
+      });
+
+      document.querySelectorAll('.ticket-list').forEach((list) => {
+        registerPageListener(list, 'dragover', (event) => {
+          event.preventDefault();
+        });
+        registerPageListener(list, 'drop', async (event) => {
+          event.preventDefault();
+          const id = Number(event.dataTransfer.getData('text/plain'));
+          const done = list.id === 'done-list';
+          await fetch(`/api/tickets/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ done }),
+          });
+          await loadTickets();
+        });
+      });
+
+      // Custom context menu: show a native-looking menu inside the app
+      // and stop the browser's default inspector overlay from appearing.
+      const contextMenu = document.createElement('div');
+      contextMenu.id = 'ticket-context-menu';
+      contextMenu.innerHTML = `
+        <div class="cm-item" data-cm-action="edit">Edit</div>
+        <div class="cm-item" data-cm-action="toggle">Done</div>
+        <div class="cm-item" data-cm-action="delete">Delete</div>
+      `;
+      document.body.appendChild(contextMenu);
+
+      let _cmTargetId = null;
+
+      function hideContextMenu() {
+        contextMenu.classList.remove('visible');
+        contextMenu.style.left = '-9999px';
+        contextMenu.style.top = '-9999px';
+        _cmTargetId = null;
+      }
+
+      function showContextMenu(x, y, ticketId) {
+        _cmTargetId = ticketId;
+        const ticket = state.tickets.find(t => t.id === ticketId) || {};
+        const toggleItem = contextMenu.querySelector('[data-cm-action="toggle"]');
+        toggleItem.textContent = ticket.done ? 'Reopen' : 'Done';
+        contextMenu.style.left = x + 'px';
+        contextMenu.style.top = y + 'px';
+        contextMenu.classList.add('visible');
+      }
+
+      // Handle clicks on the custom menu
+      registerPageListener(contextMenu, 'click', async (ev) => {
+        const item = ev.target.closest('.cm-item');
+        if (!item || !_cmTargetId) return;
+        const action = item.dataset.cmAction;
+        const id = Number(_cmTargetId);
+        hideContextMenu();
+        if (action === 'edit') {
+          const ticket = state.tickets.find(t => t.id === id);
+          if (ticket) openModal(ticket);
+        } else if (action === 'toggle') {
+          await toggleDone(id);
+        } else if (action === 'delete') {
+          await deleteTicket(id);
+        }
+      });
+
+      // Hide menu on outside click or escape
+      registerPageListener(document, 'mousedown', (ev) => {
+        if (!contextMenu.contains(ev.target)) hideContextMenu();
+      });
+      registerPageListener(document, 'scroll', hideContextMenu, true);
+      registerPageListener(document, 'keydown', (ev) => { if (ev.key === 'Escape') hideContextMenu(); });
+
+      // Attach contextmenu handler to cards (and lists for empty state)
+      registerPageListener(document, 'contextmenu', (ev) => {
+        const card = ev.target.closest('.ticket-card');
+        const list = ev.target.closest('.ticket-list');
+        if (card) {
+          ev.preventDefault();
+          const id = Number(card.dataset.id);
+          const x = ev.clientX; const y = ev.clientY;
+          showContextMenu(x, y, id);
+        } else if (list) {
+          // Right-clicked empty area: offer New ticket
+          ev.preventDefault();
+          showContextMenu(ev.clientX, ev.clientY, null);
+        }
+      });
+
+      window.__pageInit = function() {
+        loadTickets();
+      };
+
+      window.__pageDestroy = function() {
+        pageListeners.forEach(({ target, eventName, handler, options }) => {
+          target.removeEventListener(eventName, handler, options);
+        });
+        pageListeners.length = 0;
+        hideContextMenu();
+        if (contextMenu.parentNode) {
+          contextMenu.parentNode.removeChild(contextMenu);
+        }
+      };
+    </script>
+  </body>
+</html>

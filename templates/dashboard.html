@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard — PranshulOS</title>
+  <link rel="stylesheet" href="/static/fonts/ibmflex.css"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:          #0c0c0c;
+      --surface:     #141414;
+      --surface2:    #1c1c1c;
+      --border:      #272727;
+      --border2:     #333;
+      --text:        #e8e6e1;
+      --text2:       #8a8880;
+      --text3:       #4a4845;
+      --amber:       #e8a84c;
+      --amber-dim:   #7a5820;
+      --amber-faint: rgba(232,168,76,0.07);
+      --amber-faint2:rgba(232,168,76,0.14);
+      --green:       #5aab7f;
+      --green-faint: rgba(90,171,127,0.1);
+      --mono:  'IBM Plex Mono', monospace;
+      --sans:  'IBM Plex Sans', sans-serif;
+      --r:     10px;
+    }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── layout ── */
+    .shell {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .logo { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.14em; color: var(--amber); }
+    .h-sep { width: 1px; height: 14px; background: var(--border2); }
+    .h-sub { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.06em; }
+    .h-date { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--text2); }
+    .h-link {
+      font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+      color: var(--text3); text-decoration: none; padding: 4px 8px;
+      border-radius: 5px; border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+    .h-link:hover { color: var(--amber); border-color: var(--amber-dim); }
+
+    .body {
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      overflow: hidden;
+    }
+    .main-col {
+      padding: 22px;
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+    .side-col {
+      padding: 22px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    /* ── section labels ── */
+    .sec-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: var(--text3);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    /* ── notification bar ── */
+    .notif {
+      background: var(--amber-faint2);
+      border: 1px solid var(--amber-dim);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--amber);
+      letter-spacing: 0.04em;
+    }
+    .notif-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--amber); flex-shrink: 0;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* ── tabs ── */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+    .tab {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: var(--text3);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 7px 12px 8px;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: all 0.12s;
+    }
+    .tab.active { color: var(--amber); border-bottom-color: var(--amber); }
+    .tab:hover:not(.active) { color: var(--text2); }
+
+    /* ── input row ── */
+    .input-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .task-input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      padding: 9px 13px;
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .task-input:focus { border-color: var(--amber-dim); }
+    .task-input::placeholder { color: var(--text3); }
+    .add-btn {
+      background: var(--amber-faint2);
+      border: 1px solid var(--amber-dim);
+      border-radius: 8px;
+      padding: 9px 14px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--amber);
+      cursor: pointer;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .add-btn:hover { background: rgba(232,168,76,0.22); }
+
+    /* ── task list ── */
+    .task-list { display: flex; flex-direction: column; gap: 6px; }
+    .task-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: border-color 0.15s;
+    }
+    .task-item.done {
+      opacity: 0.55;
+      background: rgba(90,171,127,0.05);
+      border-color: transparent;
+    }
+    .task-item.stacked { border-left: 2px solid var(--amber-dim); }
+    .check {
+      width: 16px; height: 16px;
+      border-radius: 4px;
+      border: 1.5px solid var(--border2);
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .check.checked { border-color: var(--green); background: var(--green-faint); }
+    .check.checked::after {
+      content:'';
+      width:7px; height:5px;
+      border-left:1.5px solid var(--green);
+      border-bottom:1.5px solid var(--green);
+      transform: rotate(-45deg) translateY(-1px);
+      display:block;
+    }
+    .task-text { font-size: 13px; color: var(--text); flex: 1; line-height: 1.4; }
+    .task-item.done .task-text { text-decoration: line-through; color: var(--text3); }
+    .task-tag {
+      font-family: var(--mono); font-size: 9px;
+      color: var(--amber); background: var(--amber-faint);
+      border: 1px solid var(--amber-dim);
+      border-radius: 4px; padding: 1px 6px;
+      letter-spacing: 0.06em; flex-shrink: 0;
+    }
+    .task-date {
+      font-family: var(--mono); font-size: 10px;
+      color: var(--text3); flex-shrink: 0;
+    }
+    .del-btn {
+      background: none; border: none;
+      color: var(--text3); cursor: pointer;
+      font-size: 15px; padding: 2px 4px;
+      border-radius: 4px; opacity: 0;
+      transition: opacity 0.1s, color 0.1s; flex-shrink: 0;
+    }
+    .task-item:hover .del-btn { opacity: 1; }
+    .del-btn:hover { color: #c87070; }
+
+    /* ── time slot badge ── */
+    .task-time {
+      font-family: var(--mono); font-size: 10px;
+      color: var(--amber); background: var(--amber-faint);
+      border: 1px solid var(--amber-dim);
+      border-radius: 4px; padding: 2px 7px;
+      letter-spacing: 0.03em; flex-shrink: 0; white-space: nowrap;
+    }
+    .task-item.done .task-time { opacity: 0.5; }
+    .task-time { cursor: pointer; }
+    .task-time:hover { background: var(--amber-faint2); }
+    .task-time-add {
+      font-family: var(--mono); font-size: 9px; color: var(--text3);
+      background: none; border: 1px dashed var(--border2); border-radius: 4px;
+      padding: 1px 6px; cursor: pointer; flex-shrink: 0; opacity: 0;
+      transition: opacity 0.1s; letter-spacing: 0.04em;
+    }
+    .task-item:hover .task-time-add { opacity: 1; }
+    .task-time-add:hover { color: var(--amber); border-color: var(--amber-dim); }
+
+    /* inline time edit */
+    .task-edit-row {
+      display: none; gap: 6px; align-items: center;
+      padding: 8px 12px 10px 38px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-top: none; border-radius: 0 0 8px 8px;
+      margin-top: -6px; margin-bottom: 6px;
+    }
+    .task-edit-row.open { display: flex; }
+
+    /* ── time slot inputs in add row ── */
+    .time-slot-row {
+      display: flex; gap: 6px; align-items: center;
+      margin-top: 6px;
+    }
+    .time-slot-label {
+      font-family: var(--mono); font-size: 10px;
+      color: var(--text3); letter-spacing: 0.05em; flex-shrink: 0;
+    }
+    .time-inp {
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 6px; padding: 5px 8px;
+      font-family: var(--mono); font-size: 12px;
+      color: var(--text); outline: none;
+      transition: border-color 0.15s; width: 96px;
+    }
+    .time-inp:focus { border-color: var(--amber-dim); }
+    .time-inp::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
+    .time-sep { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+    .time-clear {
+      background: none; border: none; color: var(--text3);
+      font-size: 13px; cursor: pointer; padding: 2px 5px;
+      border-radius: 4px; transition: color 0.1s;
+    }
+    .time-clear:hover { color: #c87070; }
+
+    /* ── empty state ── */
+    .empty {
+      padding: 22px 12px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text3);
+      letter-spacing: 0.06em;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+    }
+
+    /* ── done toggle ── */
+    .done-toggle {
+      background: none; border: none;
+      font-family: var(--mono); font-size: 10px;
+      color: var(--text3); cursor: pointer;
+      letter-spacing: 0.08em;
+      display: flex; align-items: center; gap: 5px;
+      padding: 6px 0; margin-bottom: 8px;
+      transition: color 0.1s;
+    }
+    .done-toggle:hover { color: var(--text2); }
+
+    /* ── selected day label ── */
+    .sel-label {
+      font-family: var(--mono); font-size: 10px;
+      color: var(--amber); letter-spacing: 0.08em;
+      margin-bottom: 12px;
+    }
+
+    /* ── calendar ── */
+    .cal-nav {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .cal-month { font-family: var(--mono); font-size: 12px; color: var(--text); letter-spacing: 0.08em; }
+    .cal-nav-btn {
+      background: none; border: none;
+      color: var(--text3); cursor: pointer;
+      font-size: 18px; padding: 2px 6px;
+      border-radius: 4px; line-height: 1;
+      transition: color 0.1s;
+    }
+    .cal-nav-btn:hover { color: var(--amber); }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 3px;
+    }
+    .cal-dow {
+      font-family: var(--mono); font-size: 9px;
+      color: var(--text3); text-align: center;
+      padding: 3px 0; letter-spacing: 0.06em;
+    }
+    .cal-day {
+      aspect-ratio: 1;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: var(--mono); font-size: 11px;
+      color: var(--text2);
+      border: 1px solid transparent;
+      transition: all 0.12s;
+      gap: 2px;
+    }
+    .cal-day:hover { background: var(--surface2); border-color: var(--border); }
+    .cal-day.today { background: var(--amber-faint2); border-color: var(--amber-dim); color: var(--amber); font-weight: 500; }
+    .cal-day.selected { background: rgba(232,168,76,0.2); border-color: var(--amber); color: var(--amber); }
+    .cal-day .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--amber); opacity: 0.65; }
+    .cal-day.faded { opacity: 0.2; pointer-events: none; }
+
+    /* ── goals ── */
+    .goal-item {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 9px 11px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+    .goal-bullet {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--amber); flex-shrink: 0; margin-top: 5px;
+    }
+    .goal-text { font-size: 12px; color: var(--text2); line-height: 1.5; flex: 1; }
+    .goal-del {
+      background: none; border: none;
+      color: transparent; cursor: pointer;
+      font-size: 13px; flex-shrink: 0;
+      padding: 0 2px; border-radius: 3px;
+      transition: color 0.1s;
+    }
+    .goal-item:hover .goal-del { color: var(--text3); }
+    .goal-del:hover { color: #c87070 !important; }
+    .goal-input-row { display: flex; gap: 6px; margin-top: 8px; }
+    .goal-input {
+      flex: 1; background: var(--surface);
+      border: 1px solid var(--border2); border-radius: 7px;
+      padding: 7px 10px; font-family: var(--sans);
+      font-size: 12px; color: var(--text); outline: none;
+      transition: border-color 0.15s;
+    }
+    .goal-input:focus { border-color: var(--amber-dim); }
+    .goal-input::placeholder { color: var(--text3); }
+    .goal-add-btn {
+      background: none; border: 1px solid var(--border2);
+      border-radius: 7px; color: var(--text2); cursor: pointer;
+      font-size: 18px; padding: 3px 12px;
+      transition: all 0.12s; line-height: 1;
+    }
+    .goal-add-btn:hover { border-color: var(--amber-dim); color: var(--amber); }
+
+    .divider { height: 1px; background: var(--border); }
+    .loading { font-family: var(--mono); font-size: 11px; color: var(--text3); letter-spacing: 0.08em; padding: 16px 0; }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <span class="logo">PRANSHULOS</span>
+    <div class="h-sep"></div>
+    <span class="h-sub">DASHBOARD</span>
+    <span class="h-date" id="hdate"></span>
+  </header>
+
+  <div class="body">
+    <!-- ── main column ── -->
+    <div class="main-col">
+      <div id="notif-area"></div>
+
+      <div>
+        <div class="tabs">
+          <button class="tab active" id="tab-today" onclick="switchTab('today')">TODAY</button>
+          <button class="tab" id="tab-sel" onclick="switchTab('selected')">SELECTED DAY</button>
+        </div>
+
+        <!-- today panel -->
+        <div id="panel-today">
+          <div class="input-row">
+            <input class="task-input" id="inp-today" placeholder="Add a task for today…" onkeydown="if(event.key==='Enter')addTask()">
+            <button class="add-btn" onclick="addTask()">+ ADD</button>
+          </div>
+          <div class="time-slot-row">
+            <span class="time-slot-label">TIME SLOT</span>
+            <input class="time-inp" type="time" id="ts-start-today" title="Start time">
+            <span class="time-sep">–</span>
+            <input class="time-inp" type="time" id="ts-end-today" title="End time">
+            <button class="time-clear" title="Clear time slot" onclick="clearTimeToday()">×</button>
+          </div>
+          <div class="sec-label">PENDING</div>
+          <div id="list-pending" class="task-list"></div>
+          <div style="margin-top:14px">
+            <button class="done-toggle" id="done-toggle" onclick="toggleDone()">
+              ▸ DONE TODAY (<span id="done-count">0</span>)
+            </button>
+            <div id="list-done" class="task-list" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- selected day panel -->
+        <div id="panel-sel" style="display:none">
+          <div class="sel-label" id="sel-label">SELECT A DAY ON THE CALENDAR →</div>
+          <div class="input-row">
+            <input class="task-input" id="inp-sel" placeholder="Schedule a task for this day…" onkeydown="if(event.key==='Enter')addTaskSel()">
+            <button class="add-btn" onclick="addTaskSel()">+ ADD</button>
+          </div>
+          <div class="time-slot-row">
+            <span class="time-slot-label">TIME SLOT</span>
+            <input class="time-inp" type="time" id="ts-start-sel" title="Start time">
+            <span class="time-sep">–</span>
+            <input class="time-inp" type="time" id="ts-end-sel" title="End time">
+            <button class="time-clear" title="Clear time slot" onclick="clearTimeSel()">×</button>
+          </div>
+          <div id="list-sel" class="task-list"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="sec-label">STACKED FROM PREVIOUS DAYS</div>
+        <div id="list-stacked" class="task-list"></div>
+      </div>
+    </div>
+
+    <!-- ── side column ── -->
+    <div class="side-col">
+      <div>
+        <div class="cal-nav">
+          <button class="cal-nav-btn" onclick="shiftMonth(-1)">‹</button>
+          <span class="cal-month" id="cal-label"></span>
+          <button class="cal-nav-btn" onclick="shiftMonth(1)">›</button>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div>
+        <div class="sec-label">MAIN GOALS</div>
+        <div id="goals-list"></div>
+        <div class="goal-input-row">
+          <input class="goal-input" id="goal-inp" placeholder="Add a goal…" onkeydown="if(event.key==='Enter')addGoal()">
+          <button class="goal-add-btn" onclick="addGoal()">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── BUG-2026-003 FIX ──────────────────────────────────────────────────────────
+// shell.html runs page scripts via `new Function(src)()` — a private closure
+// scope. Every function defined here is local to that scope, invisible to the
+// global `window` that inline onclick="..." attributes resolve against.
+// Fix: expose every callback explicitly on `window` so onclick handlers work.
+// Additional fixes:
+//   • toggleDone now also re-renders the done list (was only toggling display)
+//   • checkNotif covers the 23:00 threshold required by the spec
+//   • renderCal no longer redeclares `grid` (was shadowing the calGrid ref)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOWS   = ['SU','MO','TU','WE','TH','FR','SA'];
+
+let tasks = [], goals = [];
+let calView = { year: 0, month: 0 };
+let selectedDate = null;
+let showDone = false;
+let editingTaskId = null;
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmtDate(s) {
+  const [y,m,d] = s.split('-');
+  return `${MONTHS[parseInt(m)-1].slice(0,3).toUpperCase()} ${parseInt(d)}`;
+}
+
+async function api(method, path, body) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  return r.json();
+}
+
+async function loadState() {
+  try {
+    const data = await api('GET', '/api/dashboard/state');
+    tasks = data.tasks || [];
+    goals = data.goals || [];
+  } catch (e) {
+    console.error('loadState failed:', e);
+  }
+  render();
+}
+
+function _readTimeSlot(startId, endId) {
+  const s = (document.getElementById(startId).value || '').trim();
+  const e = (document.getElementById(endId).value   || '').trim();
+  return { time_start: s || null, time_end: e || null };
+}
+
+function clearTimeToday() {
+  document.getElementById('ts-start-today').value = '';
+  document.getElementById('ts-end-today').value   = '';
+}
+
+function clearTimeSel() {
+  document.getElementById('ts-start-sel').value = '';
+  document.getElementById('ts-end-sel').value   = '';
+}
+
+function fmtTime(hhmm) {
+  if (!hhmm) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hr   = h % 12 || 12;
+  return `${hr}:${String(m).padStart(2,'0')} ${ampm}`;
+}
+
+async function addTask() {
+  const inp = document.getElementById('inp-today');
+  const text = inp.value.trim();
+  if (!text) return;
+  const slot = _readTimeSlot('ts-start-today', 'ts-end-today');
+  const t = await api('POST', '/api/dashboard/tasks', { text, date: todayStr(), ...slot });
+  tasks.push(t); inp.value = '';
+  clearTimeToday();
+  render();
+}
+
+async function addTaskSel() {
+  if (!selectedDate) return;
+  const inp = document.getElementById('inp-sel');
+  const text = inp.value.trim();
+  if (!text) return;
+  const slot = _readTimeSlot('ts-start-sel', 'ts-end-sel');
+  const t = await api('POST', '/api/dashboard/tasks', { text, date: selectedDate, ...slot });
+  tasks.push(t); inp.value = '';
+  clearTimeSel();
+  render();
+}
+
+async function toggleTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  const done = !t.done;
+  const patch = { done: done ? 1 : 0, done_date: done ? todayStr() : null };
+  const updated = await api('PATCH', `/api/dashboard/tasks/${id}`, patch);
+  const idx = tasks.findIndex(x => x.id === id);
+  if (idx !== -1) tasks[idx] = updated;
+  render();
+}
+
+async function deleteTask(id) {
+  await api('DELETE', `/api/dashboard/tasks/${id}`);
+  tasks = tasks.filter(x => x.id !== id);
+  if (editingTaskId === id) editingTaskId = null;
+  render();
+}
+
+async function saveTaskTime(id, startId, endId) {
+  const s = (document.getElementById(startId).value || '').trim() || null;
+  const e = (document.getElementById(endId).value   || '').trim() || null;
+  const updated = await api('PATCH', `/api/dashboard/tasks/${id}`, { time_start: s, time_end: e });
+  const idx = tasks.findIndex(x => x.id === id);
+  if (idx !== -1) tasks[idx] = updated;
+  editingTaskId = null;
+  render();
+}
+
+async function clearTaskTime(id) {
+  const updated = await api('PATCH', `/api/dashboard/tasks/${id}`, { time_start: null, time_end: null });
+  const idx = tasks.findIndex(x => x.id === id);
+  if (idx !== -1) tasks[idx] = updated;
+  editingTaskId = null;
+  render();
+}
+
+function toggleEditTaskTime(id) {
+  editingTaskId = (editingTaskId === id) ? null : id;
+  render();
+}
+
+async function addGoal() {
+  const inp = document.getElementById('goal-inp');
+  const text = inp.value.trim();
+  if (!text) return;
+  const g = await api('POST', '/api/dashboard/goals', { text });
+  goals.push(g); inp.value = '';
+  render();
+}
+
+async function deleteGoal(id) {
+  await api('DELETE', `/api/dashboard/goals/${id}`);
+  goals = goals.filter(x => x.id !== id);
+  render();
+}
+
+function switchTab(tab) {
+  document.getElementById('panel-today').style.display = tab==='today' ? '' : 'none';
+  document.getElementById('panel-sel').style.display   = tab==='selected' ? '' : 'none';
+  document.getElementById('tab-today').classList.toggle('active', tab==='today');
+  document.getElementById('tab-sel').classList.toggle('active', tab==='selected');
+}
+
+function toggleDone() {
+  showDone = !showDone;
+  // FIX: re-render the done list into the DOM on expand, not just toggle display.
+  // Previously the list was only rendered during render() and the display toggle
+  // had no items to show if render() hadn't been called yet after new completions.
+  const today = todayStr();
+  const done = tasks.filter(t => t.done && t.done_date === today);
+  fillList('list-done', done, false);
+  document.getElementById('list-done').style.display = showDone ? '' : 'none';
+  renderDoneToggle();
+}
+
+function renderDoneToggle() {
+  const cnt = tasks.filter(t => t.done && t.done_date === todayStr()).length;
+  document.getElementById('done-toggle').innerHTML =
+    `${showDone?'▾':'▸'} DONE TODAY (<span id="done-count">${cnt}</span>)`;
+}
+
+function sortByTimeSlot(arr) {
+  // timed tasks first (chronological), untimed tasks after
+  return [...arr].sort((a, b) => {
+    const at = a.time_start || null;
+    const bt = b.time_start || null;
+    if (at && bt) return at < bt ? -1 : at > bt ? 1 : 0;
+    if (at) return -1;
+    if (bt) return  1;
+    return 0;
+  });
+}
+
+function makeTaskEl(t, showStackTag) {
+  const div = document.createElement('div');
+  div.className = 'task-item' + (t.done ? ' done' : '') + (t.stacked && !t.done ? ' stacked' : '');
+
+  const chk = document.createElement('div');
+  chk.className = 'check' + (t.done ? ' checked' : '');
+  chk.onclick = () => toggleTask(t.id);
+  div.appendChild(chk);
+
+  // time slot badge — before text so it reads [time] task
+  if (t.time_start) {
+    const timeBadge = document.createElement('span');
+    timeBadge.className = 'task-time';
+    const end = t.time_end ? ` – ${fmtTime(t.time_end)}` : '';
+    timeBadge.textContent = fmtTime(t.time_start) + end;
+    timeBadge.title = 'Click to edit time slot';
+    if (!t.done) timeBadge.onclick = () => toggleEditTaskTime(t.id);
+    div.appendChild(timeBadge);
+  } else if (!t.done) {
+    const addTime = document.createElement('button');
+    addTime.className = 'task-time-add';
+    addTime.textContent = '+ time';
+    addTime.onclick = (e) => { e.stopPropagation(); toggleEditTaskTime(t.id); };
+    div.appendChild(addTime);
+  }
+
+  const txt = document.createElement('div');
+  txt.className = 'task-text';
+  txt.textContent = t.text;
+  div.appendChild(txt);
+
+  if (showStackTag && t.stacked) {
+    const tag = document.createElement('span');
+    tag.className = 'task-tag';
+    tag.textContent = 'STACKED';
+    div.appendChild(tag);
+  }
+
+  const today = todayStr();
+  if (t.date && t.date !== today) {
+    const badge = document.createElement('span');
+    badge.className = 'task-date';
+    badge.textContent = fmtDate(t.date);
+    div.appendChild(badge);
+  }
+
+  const del = document.createElement('button');
+  del.className = 'del-btn';
+  del.textContent = '×';
+  del.onclick = () => deleteTask(t.id);
+  div.appendChild(del);
+
+  return div;
+}
+
+function fillList(elId, items, showStackTag) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '';
+  if (items.length === 0) {
+    const em = document.createElement('div');
+    em.className = 'empty';
+    em.textContent = elId === 'list-stacked' ? 'NOTHING STACKED' : 'NOTHING HERE';
+    el.appendChild(em);
+  } else {
+    items.forEach(t => {
+      el.appendChild(makeTaskEl(t, showStackTag));
+      if (editingTaskId === t.id && !t.done) {
+        const editRow = document.createElement('div');
+        editRow.className = 'task-edit-row open';
+        const sid = 'tedit-start-' + t.id;
+        const eid = 'tedit-end-' + t.id;
+        editRow.innerHTML = `
+          <span class="time-slot-label">TIME</span>
+          <input class="time-inp" type="time" id="${sid}" value="${t.time_start || ''}">
+          <span class="time-sep">–</span>
+          <input class="time-inp" type="time" id="${eid}" value="${t.time_end || ''}">
+          <button class="add-btn" style="padding:5px 10px" onclick="saveTaskTime(${t.id},'${sid}','${eid}')">SAVE</button>
+          <button class="time-clear" id="tclear-${t.id}">CLEAR</button>`;
+        el.appendChild(editRow);
+        editRow.querySelector('#tclear-' + t.id).onclick = () => clearTaskTime(t.id);
+      }
+    });
+  }
+}
+
+function render() {
+  const hdate = document.getElementById('hdate');
+  const calLabel = document.getElementById('cal-label');
+  const calGrid = document.getElementById('cal-grid');
+  if (!hdate || !calLabel || !calGrid) return;
+
+  const today = todayStr();
+
+  hdate.textContent =
+    new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
+
+  const pending  = sortByTimeSlot(tasks.filter(t => !t.done && !t.stacked && t.date === today));
+  const done     = tasks.filter(t => t.done && t.done_date === today);
+  const stacked  = sortByTimeSlot(tasks.filter(t => t.stacked && !t.done));
+  const selTasks = selectedDate ? sortByTimeSlot(tasks.filter(t => t.date === selectedDate && !t.done)) : [];
+
+  fillList('list-pending', pending, false);
+  fillList('list-done',    done,    false);
+  fillList('list-stacked', stacked, true);
+  fillList('list-sel',     selTasks, false);
+
+  // Keep done list hidden unless user expanded it
+  if (!showDone) document.getElementById('list-done').style.display = 'none';
+
+  renderDoneToggle();
+
+  if (selectedDate) {
+    document.getElementById('sel-label').textContent = `TASKS FOR ${fmtDate(selectedDate)}`;
+  }
+
+  // goals
+  const gl = document.getElementById('goals-list');
+  gl.innerHTML = '';
+  goals.forEach(g => {
+    const div = document.createElement('div');
+    div.className = 'goal-item';
+    const bullet = document.createElement('div'); bullet.className = 'goal-bullet';
+    const txtEl = document.createElement('div'); txtEl.className = 'goal-text'; txtEl.textContent = g.text;
+    const del = document.createElement('button'); del.className = 'goal-del';
+    del.textContent = '×'; del.onclick = () => deleteGoal(g.id);
+    div.append(bullet, txtEl, del);
+    gl.appendChild(div);
+  });
+
+  checkNotif(pending.length);
+  renderCal();
+}
+
+function checkNotif(pendingCount) {
+  const area = document.getElementById('notif-area');
+  const h = new Date().getHours();
+  // FIX: added 23:00 tier as required by spec (pending tasks prompt notification)
+  if (pendingCount > 0 && h >= 18) {
+    let msg;
+    if (h >= 23) {
+      msg = `${pendingCount} task${pendingCount>1?'s':''} still pending — midnight approaching!`;
+    } else if (h >= 20) {
+      msg = `${pendingCount} task${pendingCount>1?'s':''} still pending — day ends soon.`;
+    } else {
+      msg = `${pendingCount} task${pendingCount>1?'s':''} left today. Evening reminder.`;
+    }
+    area.innerHTML = `<div class="notif"><div class="notif-dot"></div>${msg}</div>`;
+  } else {
+    area.innerHTML = '';
+  }
+}
+
+function shiftMonth(dir) {
+  calView.month += dir;
+  if (calView.month < 0)  { calView.month = 11; calView.year--; }
+  if (calView.month > 11) { calView.month = 0;  calView.year++; }
+  renderCal();
+}
+
+function selectDate(dateStr) {
+  selectedDate = dateStr;
+  switchTab('selected');
+  render();
+}
+
+function renderCal() {
+  const calLabel = document.getElementById('cal-label');
+  const calGrid  = document.getElementById('cal-grid');  // FIX: was re-declared as `grid` below, shadowing this
+  if (!calLabel || !calGrid) return;
+
+  const { year, month } = calView;
+  calLabel.textContent = `${MONTHS[month].slice(0,3).toUpperCase()} ${year}`;
+
+  const today = todayStr();
+  const taskDates = new Set(tasks.map(t => t.date));
+  calGrid.innerHTML = '';  // FIX: use calGrid, not a re-declared `grid`
+
+  DOWS.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'cal-dow'; el.textContent = d;
+    calGrid.appendChild(el);
+  });
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+
+  for (let i = 0; i < firstDay; i++) {
+    const el = document.createElement('div'); el.className = 'cal-day faded';
+    calGrid.appendChild(el);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const el = document.createElement('div');
+    const cls = ['cal-day'];
+    if (ds === today) cls.push('today');
+    if (ds === selectedDate) cls.push('selected');
+    if (taskDates.has(ds)) cls.push('has-tasks');
+    el.className = cls.join(' ');
+    el.textContent = d;
+    if (taskDates.has(ds)) {
+      const dot = document.createElement('div'); dot.className = 'dot';
+      el.appendChild(dot);
+    }
+    el.onclick = () => selectDate(ds);
+    calGrid.appendChild(el);
+  }
+}
+
+// ── FIX: expose all onclick-targeted functions to window scope ────────────────
+// shell.html executes page scripts via `new Function(src)()` — a sealed
+// closure. Inline onclick="fn()" attributes resolve against window, not this
+// closure. Without explicit assignment every button silently does nothing.
+window.addTask       = addTask;
+window.addTaskSel    = addTaskSel;
+window.clearTimeToday = clearTimeToday;
+window.clearTimeSel   = clearTimeSel;
+window.saveTaskTime  = saveTaskTime;
+window.clearTaskTime = clearTaskTime;
+window.switchTab   = switchTab;
+window.toggleDone  = toggleDone;
+window.shiftMonth  = shiftMonth;
+window.selectDate  = selectDate;
+window.addGoal     = addGoal;
+// toggleTask / deleteTask / deleteGoal are called only via closures in
+// makeTaskEl, so they don't need window assignment.
+
+// ── Page init hook ────────────────────────────────────────────────────────────
+window.__pageInit = function initDashboard() {
+  const now = new Date();
+  calView = { year: now.getFullYear(), month: now.getMonth() };
+  selectedDate = null;
+  showDone = false;
+  render();       // paint skeleton immediately
+  loadState();    // then hydrate from API
+};
+
+// Interval registered after __pageInit call; destroyed by shell on navigate-away.
+// FIX: moved inside __pageInit so it starts AFTER tasks are live, not at parse time.
+let _notifInterval = null;
+window.__pageInit = (function(_orig) {
+  return function initDashboard() {
+    _orig();
+    _notifInterval = setInterval(() => {
+      const today = todayStr();
+      const pendingCount = tasks.filter(t => !t.done && !t.stacked && t.date === today).length;
+      checkNotif(pendingCount);
+    }, 60000);
+  };
+})(window.__pageInit);
+
+window.__pageDestroy = function() {
+  if (_notifInterval) { clearInterval(_notifInterval); _notifInterval = null; }
+};
+</script>
+</body>
+</html>

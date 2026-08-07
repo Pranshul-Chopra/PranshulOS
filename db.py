@@ -1,0 +1,687 @@
+# ── db.py ─────────────────────────────────────────────────────────────────────
+# SQLite database — tasks, goals, docs.
+# No chat/memory tables.
+
+import os
+import sqlite3
+import threading
+from queue import Queue
+from pathlib import Path
+
+
+def _user_data_dir() -> Path:
+    """
+    Persistent, per-user, per-machine data directory — independent of wherever
+    the app happens to be installed/extracted. This matters because a
+    PyInstaller build's own folder can be replaced/reinstalled on update, and
+    a --onefile build's __file__ lives in a temp dir that's wiped every run.
+    """
+    base = os.getenv("LOCALAPPDATA") or str(Path.home() / ".pranshulos")
+    data_dir = Path(base) / "PranshulOS"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir
+
+
+DB_PATH = _user_data_dir() / "pranshulos.db"
+
+# One-time migration: if an old DB sits next to this file (pre-LOCALAPPDATA
+# builds) and nothing exists yet at the new location, move it over so
+# existing installs (including yours) don't lose data on upgrade.
+_legacy_path = Path(__file__).parent / "pranshulos.db"
+if _legacy_path.exists() and not DB_PATH.exists():
+    import shutil
+    shutil.copy2(_legacy_path, DB_PATH)
+
+
+SCHEMA_VERSION = 9
+
+
+# ── Connection pool ────────────────────────────────────────────────────────────
+
+class _Pool:
+    def __init__(self, size: int = 3):
+        self._q: Queue = Queue(maxsize=size)
+        for _ in range(size):
+            self._q.put(self._make())
+
+    def _make(self) -> sqlite3.Connection:
+        con = sqlite3.connect(str(DB_PATH), check_same_thread=False, timeout=5.0)
+        con.row_factory = sqlite3.Row
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute("PRAGMA foreign_keys=ON")
+        return con
+
+    def get(self) -> sqlite3.Connection:
+        return self._q.get(timeout=5.0)
+
+    def put(self, con: sqlite3.Connection) -> None:
+        try:
+            self._q.put(con, block=False)
+        except Exception:
+            try: con.close()
+            except Exception: pass
+
+_pool = _Pool()
+
+
+class _Conn:
+    def __init__(self):
+        self.con = None
+
+    def __enter__(self):
+        self.con = _pool.get()
+        return self.con
+
+    def __exit__(self, exc_type, *_):
+        if self.con:
+            try:
+                if exc_type: self.con.rollback()
+                else:        self.con.commit()
+            except Exception: pass
+            _pool.put(self.con)
+
+def _conn() -> _Conn:
+    return _Conn()
+
+
+# ── Schema ─────────────────────────────────────────────────────────────────────
+
+def _get_schema_version(con: sqlite3.Connection) -> int:
+    con.execute("CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT)")
+    row = con.execute("SELECT value FROM schema_meta WHERE key = 'version'").fetchone()
+    return int(row["value"]) if row else 0
+
+
+def _set_schema_version(con: sqlite3.Connection, version: int) -> None:
+    con.execute(
+        "INSERT INTO schema_meta (key, value) VALUES ('version', ?) "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (str(version),)
+    )
+
+
+def _run_migrations(con: sqlite3.Connection) -> None:
+    """
+    Add future schema changes here as sequential steps, e.g.:
+
+        current = _get_schema_version(con)
+        if current < 2:
+            con.execute("ALTER TABLE dashboard_tasks ADD COLUMN priority INTEGER DEFAULT 0")
+        if current < 3:
+            ...
+
+    Then bump SCHEMA_VERSION at the top of this file. CREATE TABLE IF NOT
+    EXISTS below already handles brand-new installs safely — this is only
+    for changes to tables that already exist on someone's machine.
+    """
+    current = _get_schema_version(con)
+    if current < 2:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS launchers ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "name TEXT NOT NULL,"
+            "kind TEXT NOT NULL CHECK(kind IN ('url','path')),"
+            "target TEXT NOT NULL,"
+            "icon TEXT NOT NULL DEFAULT '🚀',"
+            "position INTEGER NOT NULL DEFAULT 0,"
+            "created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+        )
+    if current < 3:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS routine_items ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "text TEXT NOT NULL,"
+            "position INTEGER NOT NULL DEFAULT 0,"
+            "created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+        )
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS routine_checks ("
+            "item_id INTEGER NOT NULL REFERENCES routine_items(id) ON DELETE CASCADE,"
+            "date TEXT NOT NULL,"
+            "PRIMARY KEY (item_id, date))"
+        )
+    if current < 4:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS weekly_routine_items ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "text TEXT NOT NULL,"
+            "weekday INTEGER NOT NULL CHECK(weekday BETWEEN 0 AND 6),"
+            "position INTEGER NOT NULL DEFAULT 0,"
+            "created_at TEXT NOT NULL DEFAULT (datetime('now')))"
+        )
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS weekly_routine_checks ("
+            "item_id INTEGER NOT NULL REFERENCES weekly_routine_items(id) ON DELETE CASCADE,"
+            "date TEXT NOT NULL,"
+            "PRIMARY KEY (item_id, date))"
+        )
+    if current < 5:
+        cols = {row[1] for row in con.execute("PRAGMA table_info(dashboard_tasks)").fetchall()}
+        if "time_start" not in cols:
+            con.execute("ALTER TABLE dashboard_tasks ADD COLUMN time_start TEXT")
+        if "time_end" not in cols:
+            con.execute("ALTER TABLE dashboard_tasks ADD COLUMN time_end   TEXT")
+    if current < 6:
+        routine_cols = {row[1] for row in con.execute("PRAGMA table_info(routine_items)").fetchall()}
+        if "time_start" not in routine_cols:
+            con.execute("ALTER TABLE routine_items ADD COLUMN time_start TEXT")
+        if "time_end" not in routine_cols:
+            con.execute("ALTER TABLE routine_items ADD COLUMN time_end   TEXT")
+        weekly_cols = {row[1] for row in con.execute("PRAGMA table_info(weekly_routine_items)").fetchall()}
+        if "time_start" not in weekly_cols:
+            con.execute("ALTER TABLE weekly_routine_items ADD COLUMN time_start TEXT")
+        if "time_end" not in weekly_cols:
+            con.execute("ALTER TABLE weekly_routine_items ADD COLUMN time_end   TEXT")
+    if current < 7:
+        doc_cols = {row[1] for row in con.execute("PRAGMA table_info(docs)").fetchall()}
+        if "pinned" not in doc_cols:
+            con.execute("ALTER TABLE docs ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
+    if current < 8:
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS tickets ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "subject TEXT NOT NULL,"
+            "description TEXT NOT NULL DEFAULT '',"
+            "priority TEXT NOT NULL DEFAULT 'p2',"
+            "due_at TEXT,"
+            "done INTEGER NOT NULL DEFAULT 0,"
+            "created_at TEXT NOT NULL DEFAULT (datetime('now')),"
+            "updated_at TEXT NOT NULL DEFAULT (datetime('now'))"
+            ")"
+        )
+    if current < 9:
+        ticket_cols = {row[1] for row in con.execute("PRAGMA table_info(tickets)").fetchall()}
+        if "time_start" not in ticket_cols:
+            con.execute("ALTER TABLE tickets ADD COLUMN time_start TEXT")
+        if "time_end" not in ticket_cols:
+            con.execute("ALTER TABLE tickets ADD COLUMN time_end   TEXT")
+    if current < SCHEMA_VERSION:
+        _set_schema_version(con, SCHEMA_VERSION)
+
+
+def init_db() -> None:
+    with _conn() as con:
+        con.executescript("""
+            CREATE TABLE IF NOT EXISTS dashboard_tasks (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                text        TEXT    NOT NULL,
+                date        TEXT    NOT NULL,
+                done        INTEGER NOT NULL DEFAULT 0,
+                done_date   TEXT,
+                stacked     INTEGER NOT NULL DEFAULT 0,
+                time_start  TEXT,
+                time_end    TEXT,
+                created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS dashboard_goals (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                text        TEXT    NOT NULL,
+                created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_tasks_date
+                ON dashboard_tasks(date);
+
+            CREATE TABLE IF NOT EXISTS docs (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                title      TEXT NOT NULL DEFAULT 'Untitled',
+                content    TEXT NOT NULL DEFAULT '',
+                pinned     INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS tickets (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                subject     TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                priority    TEXT NOT NULL DEFAULT 'p2',
+                due_at      TEXT,
+                time_start  TEXT,
+                time_end    TEXT,
+                done        INTEGER NOT NULL DEFAULT 0,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS launchers (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                name       TEXT NOT NULL,
+                kind       TEXT NOT NULL CHECK(kind IN ('url', 'path')),
+                target     TEXT NOT NULL,
+                icon       TEXT NOT NULL DEFAULT '🚀',
+                position   INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS routine_items (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                text       TEXT NOT NULL,
+                position   INTEGER NOT NULL DEFAULT 0,
+                time_start TEXT,
+                time_end   TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS routine_checks (
+                item_id    INTEGER NOT NULL REFERENCES routine_items(id) ON DELETE CASCADE,
+                date       TEXT NOT NULL,
+                PRIMARY KEY (item_id, date)
+            );
+            CREATE TABLE IF NOT EXISTS weekly_routine_items (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                text       TEXT NOT NULL,
+                weekday    INTEGER NOT NULL CHECK(weekday BETWEEN 0 AND 6),
+                position   INTEGER NOT NULL DEFAULT 0,
+                time_start TEXT,
+                time_end   TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE IF NOT EXISTS weekly_routine_checks (
+                item_id    INTEGER NOT NULL REFERENCES weekly_routine_items(id) ON DELETE CASCADE,
+                date       TEXT NOT NULL,
+                PRIMARY KEY (item_id, date)
+            );
+        """)
+        _run_migrations(con)
+
+
+# ── Tasks ──────────────────────────────────────────────────────────────────────
+
+def get_tasks() -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM dashboard_tasks ORDER BY created_at ASC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_task(text: str, date: str,
+             time_start: str | None = None, time_end: str | None = None) -> dict:
+    with _conn() as con:
+        cur = con.execute(
+            "INSERT INTO dashboard_tasks (text, date, time_start, time_end) VALUES (?, ?, ?, ?)",
+            (text, date, time_start or None, time_end or None)
+        )
+        row = con.execute(
+            "SELECT * FROM dashboard_tasks WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+    return dict(row)
+
+
+def update_task(task_id: int, **fields) -> dict | None:
+    allowed = {"done", "done_date", "stacked", "text", "time_start", "time_end"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return None
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [task_id]
+    with _conn() as con:
+        con.execute(f"UPDATE dashboard_tasks SET {set_clause} WHERE id = ?", values)
+        row = con.execute(
+            "SELECT * FROM dashboard_tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_task(task_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute("DELETE FROM dashboard_tasks WHERE id = ?", (task_id,))
+    return cur.rowcount > 0
+
+
+def rollover_tasks(today: str) -> None:
+    """Remove done tasks from previous days; mark old pending as stacked."""
+    with _conn() as con:
+        con.execute(
+            "DELETE FROM dashboard_tasks WHERE done = 1 AND done_date != ?", (today,)
+        )
+        con.execute(
+            """UPDATE dashboard_tasks SET stacked = 1
+               WHERE done = 0 AND stacked = 0 AND date < ?""",
+            (today,)
+        )
+
+
+# ── Goals ──────────────────────────────────────────────────────────────────────
+
+def get_goals() -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM dashboard_goals ORDER BY created_at ASC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_goal(text: str) -> dict:
+    with _conn() as con:
+        cur = con.execute("INSERT INTO dashboard_goals (text) VALUES (?)", (text,))
+        row = con.execute(
+            "SELECT * FROM dashboard_goals WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+    return dict(row)
+
+
+def delete_goal(goal_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute("DELETE FROM dashboard_goals WHERE id = ?", (goal_id,))
+    return cur.rowcount > 0
+
+
+# ── Docs ───────────────────────────────────────────────────────────────────────
+
+def get_all_docs() -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT id, title, content, pinned, created_at, updated_at FROM docs ORDER BY pinned DESC, updated_at DESC"
+        ).fetchall()
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["content"] = (d.get("content") or "")[:120]
+        d["pinned"] = bool(d.get("pinned"))
+        result.append(d)
+    return result
+
+
+def get_doc(doc_id: int) -> dict | None:
+    with _conn() as con:
+        row = con.execute("SELECT * FROM docs WHERE id = ?", (doc_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def create_doc(title: str = "Untitled") -> dict:
+    with _conn() as con:
+        cur = con.execute("INSERT INTO docs (title, content, pinned) VALUES (?, '', 0)", (title,))
+        row = con.execute("SELECT * FROM docs WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return dict(row)
+
+
+def update_doc(doc_id: int, title: str | None = None, content: str | None = None, pinned: bool | None = None) -> dict | None:
+    fields, vals = [], []
+    if title   is not None: fields.append("title = ?");              vals.append(title)
+    if content is not None: fields.append("content = ?");            vals.append(content)
+    if pinned is not None: fields.append("pinned = ?");             vals.append(1 if pinned else 0)
+    if not fields:
+        return get_doc(doc_id)
+    fields.append("updated_at = datetime('now')")
+    vals.append(doc_id)
+    with _conn() as con:
+        con.execute(f"UPDATE docs SET {', '.join(fields)} WHERE id = ?", vals)
+        row = con.execute("SELECT * FROM docs WHERE id = ?", (doc_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def delete_doc(doc_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute("DELETE FROM docs WHERE id = ?", (doc_id,))
+    return cur.rowcount > 0
+
+
+# ── Tickets ───────────────────────────────────────────────────────────────────
+
+def get_all_tickets() -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT id, subject, description, priority, due_at, time_start, time_end, done, created_at, updated_at "
+            "FROM tickets "
+            "ORDER BY done ASC, CASE priority WHEN 'p0' THEN 0 WHEN 'p1' THEN 1 WHEN 'p2' THEN 2 WHEN 'p3' THEN 3 ELSE 4 END ASC, created_at ASC, id ASC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def create_ticket(subject: str, description: str = '', priority: str = 'p2',
+                  due_at: str | None = None,
+                  time_start: str | None = None, time_end: str | None = None) -> dict:
+    with _conn() as con:
+        cur = con.execute(
+            "INSERT INTO tickets (subject, description, priority, due_at, time_start, time_end) VALUES (?, ?, ?, ?, ?, ?)",
+            (subject, description, priority, due_at or None, time_start or None, time_end or None),
+        )
+        row = con.execute("SELECT * FROM tickets WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return dict(row)
+
+
+def update_ticket(ticket_id: int, **fields) -> dict | None:
+    allowed = {"subject", "description", "priority", "due_at", "time_start", "time_end", "done"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return get_ticket(ticket_id)
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [ticket_id]
+    with _conn() as con:
+        con.execute(f"UPDATE tickets SET {set_clause}, updated_at = datetime('now') WHERE id = ?", values)
+        row = con.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_ticket(ticket_id: int) -> dict | None:
+    with _conn() as con:
+        row = con.execute("SELECT * FROM tickets WHERE id = ?", (ticket_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def delete_ticket(ticket_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute("DELETE FROM tickets WHERE id = ?", (ticket_id,))
+    return cur.rowcount > 0
+
+
+def delete_done_tickets() -> int:
+    with _conn() as con:
+        cur = con.execute("DELETE FROM tickets WHERE done = 1")
+    return cur.rowcount
+
+
+def get_pending_tickets_due_on(due_date: str) -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT id, subject, description, priority, due_at, done, created_at, updated_at "
+            "FROM tickets WHERE done = 0 AND due_at = ? ORDER BY created_at ASC",
+            (due_date,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ── Launchers ──────────────────────────────────────────────────────────────────
+
+def get_launchers() -> list[dict]:
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM launchers ORDER BY position ASC, created_at ASC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_launcher(name: str, kind: str, target: str, icon: str = "🚀") -> dict:
+    with _conn() as con:
+        cur = con.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM launchers"
+        )
+        next_pos = cur.fetchone()[0]
+        cur = con.execute(
+            "INSERT INTO launchers (name, kind, target, icon, position) VALUES (?, ?, ?, ?, ?)",
+            (name.strip(), kind, target.strip(), icon.strip() or "🚀", next_pos)
+        )
+        row = con.execute(
+            "SELECT * FROM launchers WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+    return dict(row)
+
+
+def delete_launcher(launcher_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute("DELETE FROM launchers WHERE id = ?", (launcher_id,))
+    return cur.rowcount > 0
+
+# ── Routines ───────────────────────────────────────────────────────────────────
+
+def get_routine_items(date: str) -> list[dict]:
+    """Return all template items with a 'checked' bool for the given date."""
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT ri.id, ri.text, ri.position, ri.time_start, ri.time_end, ri.created_at, "
+            "  CASE WHEN rc.item_id IS NOT NULL THEN 1 ELSE 0 END AS checked "
+            "FROM routine_items ri "
+            "LEFT JOIN routine_checks rc ON rc.item_id = ri.id AND rc.date = ? "
+            "ORDER BY ri.position ASC, ri.created_at ASC",
+            (date,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_routine_item(text: str,
+                     time_start: str | None = None,
+                     time_end: str | None = None) -> dict:
+    with _conn() as con:
+        cur = con.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM routine_items")
+        next_pos = cur.fetchone()[0]
+        cur = con.execute(
+            "INSERT INTO routine_items (text, position, time_start, time_end) VALUES (?, ?, ?, ?)",
+            (text.strip(), next_pos, time_start or None, time_end or None)
+        )
+        row = con.execute(
+            "SELECT * FROM routine_items WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+    return dict(row)
+
+
+def update_routine_item(item_id: int, **fields) -> dict | None:
+    allowed = {"text", "time_start", "time_end"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return None
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [item_id]
+    with _conn() as con:
+        con.execute(f"UPDATE routine_items SET {set_clause} WHERE id = ?", values)
+        row = con.execute(
+            "SELECT * FROM routine_items WHERE id = ?", (item_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_routine_item(item_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute("DELETE FROM routine_items WHERE id = ?", (item_id,))
+    return cur.rowcount > 0
+
+
+def set_routine_check(item_id: int, date: str, checked: bool) -> bool:
+    with _conn() as con:
+        if checked:
+            con.execute(
+                "INSERT OR IGNORE INTO routine_checks (item_id, date) VALUES (?, ?)",
+                (item_id, date)
+            )
+        else:
+            con.execute(
+                "DELETE FROM routine_checks WHERE item_id = ? AND date = ?",
+                (item_id, date)
+            )
+    return True
+
+
+def get_routine_progress(date: str) -> dict:
+    """Return {total, done} counts for a given date."""
+    with _conn() as con:
+        total = con.execute("SELECT COUNT(*) FROM routine_items").fetchone()[0]
+        done  = con.execute(
+            "SELECT COUNT(*) FROM routine_checks WHERE date = ?", (date,)
+        ).fetchone()[0]
+    return {"total": total, "done": done}
+
+
+# ── Weekly Routine ─────────────────────────────────────────────────────────────
+# Items belong to a specific weekday (0=Mon … 6=Sun, Python weekday() convention).
+# On a given date we figure out its weekday and return matching items + check state.
+
+def _date_to_weekday(date_str: str) -> int:
+    from datetime import date as _d
+    y, m, d = date_str.split("-")
+    return _d(int(y), int(m), int(d)).weekday()
+
+
+def get_weekly_items_for_date(date: str) -> list[dict]:
+    """Return weekly items scheduled for date's weekday, with checked bool."""
+    weekday = _date_to_weekday(date)
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT wi.id, wi.text, wi.weekday, wi.position, wi.time_start, wi.time_end, wi.created_at, "
+            "  CASE WHEN wc.item_id IS NOT NULL THEN 1 ELSE 0 END AS checked "
+            "FROM weekly_routine_items wi "
+            "LEFT JOIN weekly_routine_checks wc ON wc.item_id = wi.id AND wc.date = ? "
+            "WHERE wi.weekday = ? "
+            "ORDER BY wi.position ASC, wi.created_at ASC",
+            (date, weekday)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_all_weekly_items() -> list[dict]:
+    """Return all weekly items grouped by weekday — used by the Weekly Routine page."""
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM weekly_routine_items ORDER BY weekday ASC, position ASC, created_at ASC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def add_weekly_item(text: str, weekday: int,
+                    time_start: str | None = None,
+                    time_end: str | None = None) -> dict:
+    if weekday < 0 or weekday > 6:
+        raise ValueError(f"weekday must be 0-6, got {weekday}")
+    with _conn() as con:
+        cur = con.execute(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM weekly_routine_items WHERE weekday = ?",
+            (weekday,)
+        )
+        next_pos = cur.fetchone()[0]
+        cur = con.execute(
+            "INSERT INTO weekly_routine_items (text, weekday, position, time_start, time_end) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (text.strip(), weekday, next_pos, time_start or None, time_end or None)
+        )
+        row = con.execute(
+            "SELECT * FROM weekly_routine_items WHERE id = ?", (cur.lastrowid,)
+        ).fetchone()
+    return dict(row)
+
+
+def update_weekly_item(item_id: int, **fields) -> dict | None:
+    allowed = {"text", "time_start", "time_end"}
+    updates = {k: v for k, v in fields.items() if k in allowed}
+    if not updates:
+        return None
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [item_id]
+    with _conn() as con:
+        con.execute(f"UPDATE weekly_routine_items SET {set_clause} WHERE id = ?", values)
+        row = con.execute(
+            "SELECT * FROM weekly_routine_items WHERE id = ?", (item_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def delete_weekly_item(item_id: int) -> bool:
+    with _conn() as con:
+        cur = con.execute("DELETE FROM weekly_routine_items WHERE id = ?", (item_id,))
+    return cur.rowcount > 0
+
+
+def set_weekly_check(item_id: int, date: str, checked: bool) -> bool:
+    with _conn() as con:
+        if checked:
+            con.execute(
+                "INSERT OR IGNORE INTO weekly_routine_checks (item_id, date) VALUES (?, ?)",
+                (item_id, date)
+            )
+        else:
+            con.execute(
+                "DELETE FROM weekly_routine_checks WHERE item_id = ? AND date = ?",
+                (item_id, date)
+            )
+    return True
