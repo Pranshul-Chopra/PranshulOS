@@ -1,6 +1,7 @@
 # PranshulOS
 
 **ALERT ALERT ALERT ⚠️⚠️⚠️⚠️ A CUTE ENTITY HAS BREACHED THE APP AND NOW LURKS BEHIND THE SCENES , USERS ARE REQUESTED TO NOT BE AFRAID**
+
 A local-first, Windows desktop productivity shell — built with Flask, Electron, and SQLite. No cloud, no server, no account required. Everything runs and stays on your machine.
 
 ## What it does
