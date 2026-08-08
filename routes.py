@@ -662,6 +662,71 @@ def api_delete_doc(doc_id):
     return jsonify({"error": "Not found"}), 404
 
 
+@bp.route("/api/docs/<int:doc_id>/export/<fmt>", methods=["GET"])
+def api_export_doc(doc_id, fmt):
+    """Export a document as .docx or .txt.
+    GET /api/docs/<id>/export/docx  or  /api/docs/<id>/export/txt
+    Returns the file directly so Electron / the browser triggers a native save dialog.
+    """
+    from flask import send_file
+    import io
+
+    fmt = (fmt or "").strip().lower()
+
+    if fmt not in ("docx", "txt"):
+        return jsonify({"error": f"Unsupported format: {fmt!r}. Use 'docx' or 'txt'."}), 400
+
+    doc = db.get_doc(doc_id)
+    if not doc:
+        return jsonify({"error": "Not found"}), 404
+
+    title   = doc.get("title") or "Untitled"
+    content = doc.get("content") or ""
+
+    if fmt == "txt":
+        buf = io.BytesIO(content.encode("utf-8"))
+        buf.seek(0)
+        return send_file(
+            buf,
+            mimetype="text/plain; charset=utf-8",
+            as_attachment=True,
+            download_name=f"{title}.txt",
+        )
+
+    # --- .docx ---
+    from docx import Document as _DocxDocument
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    document = _DocxDocument()
+
+    # ── Minimal styling so the output looks intentional ──────────────────────
+    style = document.styles["Normal"]
+    font  = style.font
+    font.name = "Calibri"
+    font.size = Pt(11)
+
+    # Title heading
+    heading = document.add_heading(title, level=1)
+    heading.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+    # Body — split on newlines; blank lines become paragraph breaks
+    for line in content.split("\n"):
+        para = document.add_paragraph(line)
+        para.paragraph_format.space_after = Pt(0)
+
+    buf = io.BytesIO()
+    document.save(buf)
+    buf.seek(0)
+
+    return send_file(
+        buf,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        as_attachment=True,
+        download_name=f"{title}.docx",
+    )
+
+
 # ── Tickets ───────────────────────────────────────────────────────────────────
 
 @bp.route("/tickets")
