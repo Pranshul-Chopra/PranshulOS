@@ -11,7 +11,26 @@ import time
 from datetime import datetime, date
 
 
-def _notify(title: str, message: str, timeout: int = 8) -> None:
+def _notify(title: str, message: str, timeout: int = 8, launch_url: str = "") -> None:
+    """Fire a Windows toast. Prefers winotify (supports click-to-open-URL),
+    falls back to plyer, then prints to console."""
+    try:
+        from winotify import Notification, audio
+        toast = Notification(
+            app_id="PranshulOS",
+            title=title,
+            msg=message,
+            duration="short" if timeout <= 7 else "long",
+            launch=launch_url or "",
+        )
+        toast.set_audio(audio.Default, loop=False)
+        toast.show()
+        return
+    except ImportError:
+        pass  # winotify not installed — fall through to plyer
+    except Exception as e:
+        print(f"[notifier] winotify error: {e}")
+
     try:
         from plyer import notification
         notification.notify(
@@ -180,10 +199,14 @@ def test_notification() -> None:
     )
 
 
+RELEASES_PAGE = "https://pranshul-chopra.github.io/PranshulOS-/"
+
 def notify_update_available(version: str, url: str) -> None:
-    """Called by updater.py when a newer version is found on the manifest."""
+    """Called by updater.py when a newer version is found on the manifest.
+    Clicking the toast opens the releases page in the default browser."""
     _notify(
         f"🚀 PranshulOS v{version} is available",
-        f"Click to download: {url}" if url else "A new version is available.",
+        "Click to open the releases page.",
         timeout=10,
+        launch_url=RELEASES_PAGE,
     )

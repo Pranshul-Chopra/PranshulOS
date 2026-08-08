@@ -133,6 +133,14 @@ _HOME_HTML = """<!DOCTYPE html>
       border: none; font-family: var(--sans); font-size: 13px; font-weight: 500; cursor: pointer;
     }
     .cmd-go:hover { opacity: 0.88; }
+    .cmd-mode-wrap { display: flex; border-radius: 7px; overflow: hidden; border: 1px solid var(--border2); flex-shrink: 0; }
+    .cmd-mode {
+      padding: 7px 11px; background: transparent; border: none;
+      font-family: var(--mono); font-size: 11px; color: var(--text3); cursor: pointer;
+      letter-spacing: 0.04em; transition: background 0.13s, color 0.13s; white-space: nowrap;
+    }
+    .cmd-mode.active { background: var(--amber-faint2); color: var(--amber); }
+    .cmd-mode:hover:not(.active) { background: var(--surface2); color: var(--text2); }
     .log {
       margin-top: 10px; padding: 11px 14px; border-radius: var(--radius);
       background: var(--surface); border: 1px solid var(--border);
@@ -230,7 +238,11 @@ _HOME_HTML = """<!DOCTYPE html>
       <div>
         <div class="section-label">Or just tell me</div>
         <div class="cmd-bar">
-          <input class="cmd-input" id="inp" placeholder='try "bored", "github", "spotify"\u2026' onkeydown="if(event.key==='Enter') go()"/>
+          <input class="cmd-input" id="inp" placeholder='search or open a site\u2026' onkeydown="if(event.key==='Enter') go()"/>
+          <div class="cmd-mode-wrap">
+            <button class="cmd-mode active" id="mode-nav" onclick="setMode('nav')" title="Navigate / open app">\U0001f310 Open</button>
+            <button class="cmd-mode" id="mode-search" onclick="setMode('search')" title="Google search">\U0001f50d Search</button>
+          </div>
           <button class="cmd-go" onclick="go()">Go</button>
         </div>
         <div class="log" id="log"><span style="color:var(--text3)">\u2192 what do you need?</span></div>
@@ -407,12 +419,22 @@ function addLog(msg, cls) {
   e.className='entry '+cls; e.textContent=msg;
   log.innerHTML=''; log.appendChild(e);
 }
+let _cmdMode = 'nav';
+function setMode(m) {
+  _cmdMode = m;
+  document.getElementById('mode-nav').classList.toggle('active', m === 'nav');
+  document.getElementById('mode-search').classList.toggle('active', m === 'search');
+  document.getElementById('inp').placeholder = m === 'search'
+    ? 'search the web\u2026'
+    : 'open an app or site\u2026';
+}
 async function go() {
   const inp = document.getElementById('inp');
   const q = inp.value.trim(); if(!q) return;
   addLog('\u2192 '+q,'you'); inp.value='';
   try {
-    const d = await fetch('/api/trigger',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:q})}).then(r=>r.json());
+    const endpoint = _cmdMode === 'search' ? '/api/search' : '/api/trigger';
+    const d = await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:q})}).then(r=>r.json());
     addLog('\u2192 '+(d.reply||d.result||'ok'),'reply');
   } catch(e) { addLog('\u2192 error','reply'); }
 }
@@ -535,7 +557,7 @@ window.__pageInit = function() {
   loadTasksGlance();
   loadInsights();
 };
-window.launch=launch; window.go=go;
+window.launch=launch; window.go=go; window.setMode=setMode;
 window.openModal=openModal; window.closeModal=closeModal;
 window.overlayClick=overlayClick; window.saveCustom=saveCustom;
 </script>
@@ -546,9 +568,14 @@ window.overlayClick=overlayClick; window.saveCustom=saveCustom;
 @bp.route("/home")
 def home():
     h = _dt.now().hour
-    if h < 12:   greeting = "Good morning \u2600\ufe0f"
-    elif h < 17: greeting = "Good afternoon \U0001f324"
-    else:        greeting = "Good evening \U0001f319"
+    if   h <  3: greeting = "Good night \U0001f319"
+    elif h <  6: greeting = "Up early \u2b50"
+    elif h <  9: greeting = "Good morning \U0001f305"
+    elif h < 12: greeting = "Good morning \u2600\ufe0f"
+    elif h < 15: greeting = "Good afternoon \U0001f324"
+    elif h < 18: greeting = "Good afternoon \U0001f307"
+    elif h < 21: greeting = "Good evening \U0001f306"
+    else:        greeting = "Good night \U0001f319"
     return render_template_string(_HOME_HTML, greeting=greeting)
 
 
@@ -864,10 +891,35 @@ def trigger():
                 _open_url(url)
                 results.append(f"Opened {app_name}")
                 fired.add(app_name)
-    return jsonify({
-        "result": " · ".join(results) if results else None
-    })
+    if results:
+        return jsonify({"result": " · ".join(results)})
+    # No keyword matched — treat as direct site/URL to open
+    from urllib.parse import quote as _quote
+    lowered = text.strip().lower()
+    if lowered.startswith(("http://", "https://")):
+        target = text.strip()
+    elif "." in lowered:
+        target = "https://" + text.strip()
+    else:
+        # bare word with no dot — fall through to Google
+        target = f"https://www.google.com/search?q={_quote(text.strip())}"
+    _open_url(target)
+    return jsonify({"result": f"Opened {target}"})
 
+
+
+
+@bp.route("/api/search", methods=["POST"])
+def search():
+    """Explicit Google search from the query bar search mode."""
+    from urllib.parse import quote as _quote
+    data = request.get_json(silent=True) or {}
+    query = (data.get("text") or "").strip()
+    if not query:
+        return jsonify({"result": None, "error": "empty query"})
+    target = f"https://www.google.com/search?q={_quote(query)}"
+    _open_url(target)
+    return jsonify({"result": f"Searching for \"{query}\""})
 
 @bp.route("/api/launchers", methods=["GET"])
 def get_launchers():
