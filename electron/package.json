@@ -1,0 +1,65 @@
+{
+  "name": "pranshulos",
+  "version": "2.2.0",
+  "description": "PranshulOS — local-first desktop productivity shell",
+  "main": "main.js",
+  "author": "Pranshul Chopra",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder build --win",
+    "build:dir": "electron-builder build --win --dir"
+  },
+  "dependencies": {
+    "electron-updater": "^6.1.7"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "electron": "29.4.6",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "dev.pranshulchopra.pranshulos",
+    "productName": "PranshulOS",
+    "publish": {
+      "provider": "github",
+      "owner": "Pranshul-Chopra",
+      "repo": "PranshulOS"
+    },
+    "directories": {
+      "output": "../release"
+    },
+    "files": [
+      "main.js",
+      "preload.js"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist/flask",
+        "to": "flask",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PranshulOS"
+    }
+  }
+}
